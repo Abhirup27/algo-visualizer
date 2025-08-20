@@ -2,6 +2,8 @@
 bin/
 build/
 build*/
+.cache/
+compile_commands.json
 /.vs
 .idea/
 CMakeSettings.json
