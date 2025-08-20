@@ -1,9 +1,9 @@
 #https://github.com/meemknight/raylibCmakeSetup
 #Version 1.0.0
 
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 4.0)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 #! ! ! ! ! ! !
 #set this to true to ship the game!
@@ -21,7 +21,7 @@ endif()
 
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE) #link time optimization
 
-# Ensure SFML is built as static libraries
+# Ensure raylib is built as static libraries
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build Raylib as static libraries" FORCE)
 
 
@@ -33,7 +33,7 @@ project(mygame)
 
 
 #Add raylib, and here you would add other libraries if needed!
-add_subdirectory(thirdparty/raylib-5.0)
+add_subdirectory(thirdparty/raylib-5.5)
 add_subdirectory(thirdparty/imgui-docking)
 add_subdirectory(thirdparty/rlImGui)
 
@@ -45,7 +45,7 @@ file(GLOB_RECURSE MY_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/
 
 add_executable("${CMAKE_PROJECT_NAME}")
 
-set_property(TARGET "${CMAKE_PROJECT_NAME}" PROPERTY CXX_STANDARD 17)
+set_property(TARGET "${CMAKE_PROJECT_NAME}" PROPERTY CXX_STANDARD 20)
 
 
 
