@@ -18,7 +18,7 @@ option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (UBSan) for debugging" OF
 option(ENABLE_MSAN "Enable MemorySanitizer (MSan) for debugging (not recommended to run with ASAN)" OFF)
 
 # Shared library is always PIC. Static library should be PIC too if linked into a shared library
-option(WITH_PIC "Compile static library as position-independent code" OFF)
+option(WITH_PIC "Compile static library as position-independent code" ON)
 option(BUILD_SHARED_LIBS "Build raylib as a shared library" OFF)
 cmake_dependent_option(USE_AUDIO "Build raylib with audio module" ON CUSTOMIZE_BUILD ON)
 
