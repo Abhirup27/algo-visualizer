@@ -1,6 +1,19 @@
 #include "raylib.h"
 #if defined(PLATFORM_WEB)
+#include <emscripten/console.h>
 #include <emscripten/emscripten.h>
+#include <emscripten/html5.h>
+/*
+EM_BOOL resize_callback(int eventType, const EmscriptenUiEvent *e,
+                        void *userData) {
+  int w = (int)emscripten_get_canvas_element_size();
+  int h = (int)emscripten_get_window_height();
+
+  emscripten_set_canvas_element_size("#canvas", w, h);
+  printf("Resized canvas to %d x %d\n", w, h);
+  return EM_TRUE;
+}
+*/
 #endif
 
 #include <iostream>
@@ -12,11 +25,19 @@
 ImGuiIO *g_io = nullptr;
 #pragma endregion
 
+int width = 1280;
+int height = 720;
+
 void UpdateDrawFrame(void);
 int main(void) {
 
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-  InitWindow(800, 450, "raylib [core] example - basic window");
+#if defined(PLATFORM_WEB)
+  emscripten_get_canvas_element_size("#canvas", &width, &height);
+  // width *= 2;
+  printf("%d", width);
+#endif
+  InitWindow(width, height, "raylib [core] example - basic window");
 
 #pragma region imgui
   rlImGuiSetup(true);
@@ -45,6 +66,7 @@ int main(void) {
 
 #pragma endregion
 #if defined(PLATFORM_WEB)
+  emscripten_get_canvas_element_size("#canvas", &width, &height);
   emscripten_set_main_loop(UpdateDrawFrame, 0, 1);
 #else
   SetTargetFPS(60); // Set our game to run at 60 frames-per-second
@@ -69,7 +91,16 @@ int main(void) {
 void UpdateDrawFrame(void) {
   BeginDrawing();
   ClearBackground(RAYWHITE);
+#if defined(PLATFORM_WEB)
+  emscripten_get_canvas_element_size("#canvas", &width, &height);
+  printf("%d", width);
+#endif
 
+  DrawCircle((width) / 5, 120, 35, DARKBLUE);
+  DrawCircleGradient((width) / 5, 220, 60, GREEN, SKYBLUE);
+  DrawCircleLines(width / 5, 340, 80, DARKBLUE);
+  DrawEllipse(width / 5, 120, 25, 20, YELLOW);
+  DrawEllipseLines(width / 5, 120, 30, 25, YELLOW);
 #pragma region imgui
   rlImGuiBegin();
 
