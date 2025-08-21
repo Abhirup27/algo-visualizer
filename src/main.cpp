@@ -1,4 +1,5 @@
 #include "raylib.h"
+#include "raymath.h"
 #include <cstdint>
 #include <cstdlib>
 #include <queue>
@@ -24,7 +25,8 @@ EM_JS(int, canvas_set_size, (), {
   return window.innerWidth * window.innerHeight;
 })
 
-EM_JS(void, print_alert, (int width), { alert(width); })
+EM_JS(void, print, (const char *string),
+      { Module.print(UTF8ToString(string)); })
 #endif
 
 /**
@@ -39,6 +41,9 @@ ImGuiIO *g_io = nullptr;
 
 int width = 1280;
 int height = 720;
+Camera2D g_camera = {0};
+
+Rectangle mouseCollider{0U, 0U, 15U, 15U};
 
 void UpdateDrawFrame(void);
 
@@ -69,10 +74,14 @@ struct Node_L {
 };
 
 Node_L *root = (Node_L *)malloc(sizeof(Node_L));
+Node_L *testNode = (Node_L *)malloc(sizeof(Node_L));
 
+Node_L *selectedNode = nullptr;
+Node_L *selectedNodeOrigin = nullptr;
 int main(void) {
 
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+
 #if defined(PLATFORM_WEB)
   printf("%d", canvas_set_size());
 
@@ -85,7 +94,13 @@ int main(void) {
   root->pos = {static_cast<float>(width) / 2.0f,
                static_cast<float>(height) / 2.0f};
   root->radius = 10;
-  root->collider = {width / 2.0f, height / 2.0f, 15, 15};
+  root->collider = {root->pos.x - root->radius, root->pos.y - root->radius, 15,
+                    15};
+  testNode->pos = {static_cast<float>(width) / 2.0f + 50.0f,
+                   static_cast<float>(height) / 2.0f};
+  testNode->radius = 10;
+  testNode->collider = {testNode->pos.x - testNode->radius,
+                        testNode->pos.y - testNode->radius, 15, 15};
 
 #pragma region imgui
   rlImGuiSetup(true);
@@ -115,6 +130,7 @@ int main(void) {
 
 #pragma endregion
 
+  g_camera.zoom = 1.0f;
 #if defined(PLATFORM_WEB)
   emscripten_get_canvas_element_size("#canvas", &width, &height);
 
@@ -140,7 +156,57 @@ int main(void) {
 }
 
 void UpdateDrawFrame(void) {
+  // Calculate coordinates, sizes before drawing anything.
+  if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+    Vector2 delta = GetMouseDelta();
+    delta = Vector2Scale(delta, -1.0f / g_camera.zoom);
+    g_camera.target = Vector2Add(g_camera.target, delta);
+  }
+  float wheel = GetMouseWheelMove();
+  if (wheel != 0) {
+    // Get the world point that is under the mouse
+    Vector2 mouseWorldPos = GetScreenToWorld2D(GetMousePosition(), g_camera);
+
+    // Set the offset to where the mouse is
+    g_camera.offset = GetMousePosition();
+
+    // Set the target to match, so that the camera maps the world space point
+    // under the cursor to the screen space point under the cursor at any zoom
+    g_camera.target = mouseWorldPos;
+
+    // Zoom increment
+    // Uses log scaling to provide consistent zoom speed
+    float scale = 0.2f * wheel;
+    g_camera.zoom = Clamp(expf(logf(g_camera.zoom) + scale), 0.125f, 64.0f);
+  }
+  Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), g_camera);
+  mouseCollider.x = mouseWorld.x - mouseCollider.width / 2;
+  mouseCollider.y = mouseWorld.y - mouseCollider.height / 2;
+
+  if (CheckCollisionRecs(mouseCollider, root->collider) &&
+      selectedNode == nullptr) {
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+#if defined(PLATFORM_WEB)
+      print("selected");
+#endif
+      selectedNode = root;
+    }
+    // print("Collision");
+  } else if (selectedNode != nullptr &&
+             !CheckCollisionRecs(selectedNode->collider, testNode->collider)) {
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      selectedNode = nullptr;
+    }
+  }
+  if (selectedNode != nullptr) {
+    Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), g_camera);
+    selectedNode->pos = mouseWorld;
+    selectedNode->collider.x = mouseWorld.x - selectedNode->collider.width / 2;
+    selectedNode->collider.y = mouseWorld.y - selectedNode->collider.height / 2;
+  }
+
   BeginDrawing();
+
   ClearBackground(RAYWHITE);
 
 #if defined(PLATFORM_WEB)
@@ -151,9 +217,20 @@ void UpdateDrawFrame(void) {
   width = GetScreenWidth();
   height = GetScreenHeight();
 #endif
+
+  BeginMode2D(g_camera);
+  DrawRectangleRec(mouseCollider, BLUE);
+
+  DrawRectangleRec(root->collider, GREEN);
+  DrawRectangleRec(testNode->collider, RED);
   DrawLineEx({0U, 0U}, {static_cast<float>(width), static_cast<float>(height)},
              3, RED);
   DrawCircleLines(root->pos.x, root->pos.y, root->radius, RED);
+
+  DrawText("Algorithm Visualizer", (width / 2) - 100, height / 2, 20,
+           LIGHTGRAY);
+
+  EndMode2D();
 
 #pragma region imgui
   rlImGuiBegin();
@@ -191,9 +268,6 @@ void UpdateDrawFrame(void) {
     algorithmState = AlgorithmState::Stepping;
   }
   ImGui::End();
-
-  DrawText("Congrats! You created your first window!", (width / 2) - 100,
-           height / 2, 20, LIGHTGRAY);
 
 #pragma region imgui
   rlImGuiEnd();
