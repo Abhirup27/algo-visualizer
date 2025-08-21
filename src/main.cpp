@@ -1,23 +1,35 @@
 #include "raylib.h"
+#include <cstdint>
+#include <cstdlib>
+#include <queue>
+#include <stdio.h>
+
+/*
+ * WASM imports and JS functions.
+ * */
 #if defined(PLATFORM_WEB)
 #include <emscripten/console.h>
+#include <emscripten/em_js.h>
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
-/*
-EM_BOOL resize_callback(int eventType, const EmscriptenUiEvent *e,
-                        void *userData) {
-  int w = (int)emscripten_get_canvas_element_size();
-  int h = (int)emscripten_get_window_height();
 
-  emscripten_set_canvas_element_size("#canvas", w, h);
-  printf("Resized canvas to %d x %d\n", w, h);
-  return EM_TRUE;
-}
-*/
+EM_JS(void, toggle_console, (), {
+  console = document.getElementById("output");
+  console.hidden = !console.hidden;
+})
+EM_JS(int, canvas_set_size, (), {
+  canvas = document.getElementById("canvas");
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  return window.innerWidth * window.innerHeight;
+})
+
+EM_JS(void, print_alert, (int width), { alert(width); })
 #endif
 
-#include <iostream>
-
+/**
+ *  ImGUI imports
+ * */
 #pragma region imgui
 #include "imgui.h"
 #include "imguiThemes.h"
@@ -29,15 +41,51 @@ int width = 1280;
 int height = 720;
 
 void UpdateDrawFrame(void);
+
+/**
+ * States of the algorithm.
+ * */
+enum class AlgorithmState { Idle, Stepping, Running, Done };
+
+AlgorithmState algorithmState = AlgorithmState::Idle;
+
+std::queue<int> q;
+std::vector<bool> visited;
+
+struct Node_A {
+  Vector2 pos;
+  uint16_t radius;
+  Rectangle collider;
+
+  int64_t data;
+};
+struct Node_L {
+  Vector2 pos;
+  uint16_t radius;
+  Rectangle collider;
+
+  int64_t data;
+  Node_L *edges;
+};
+
+Node_L *root = (Node_L *)malloc(sizeof(Node_L));
+
 int main(void) {
 
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 #if defined(PLATFORM_WEB)
+  printf("%d", canvas_set_size());
+
   emscripten_get_canvas_element_size("#canvas", &width, &height);
-  // width *= 2;
-  printf("%d", width);
+// printf("%d", width);
 #endif
-  InitWindow(width, height, "raylib [core] example - basic window");
+
+  InitWindow(width, height, "Algorithm Visualizer - raylib");
+
+  root->pos = {static_cast<float>(width) / 2.0f,
+               static_cast<float>(height) / 2.0f};
+  root->radius = 10;
+  root->collider = {width / 2.0f, height / 2.0f, 15, 15};
 
 #pragma region imgui
   rlImGuiSetup(true);
@@ -50,8 +98,9 @@ int main(void) {
   // imguiThemes::red();
   // imguiThemes::embraceTheDarkness();
 
-  g_io = &ImGui::GetIO();
   // ImGuiIO &io = ImGui::GetIO(); (void)io;
+
+  g_io = &ImGui::GetIO();
   g_io->ConfigFlags |=
       ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
   g_io->ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Enable Docking
@@ -65,8 +114,10 @@ int main(void) {
   }
 
 #pragma endregion
+
 #if defined(PLATFORM_WEB)
   emscripten_get_canvas_element_size("#canvas", &width, &height);
+
   emscripten_set_main_loop(UpdateDrawFrame, 0, 1);
 #else
   SetTargetFPS(60); // Set our game to run at 60 frames-per-second
@@ -91,16 +142,19 @@ int main(void) {
 void UpdateDrawFrame(void) {
   BeginDrawing();
   ClearBackground(RAYWHITE);
+
 #if defined(PLATFORM_WEB)
   emscripten_get_canvas_element_size("#canvas", &width, &height);
-  printf("%d", width);
+  // printf("%d", width);
+  // print_alert(width);
+#elif defined(PLATFORM_DESKTOP)
+  width = GetScreenWidth();
+  height = GetScreenHeight();
 #endif
+  DrawLineEx({0U, 0U}, {static_cast<float>(width), static_cast<float>(height)},
+             3, RED);
+  DrawCircleLines(root->pos.x, root->pos.y, root->radius, RED);
 
-  DrawCircle((width) / 5, 120, 35, DARKBLUE);
-  DrawCircleGradient((width) / 5, 220, 60, GREEN, SKYBLUE);
-  DrawCircleLines(width / 5, 340, 80, DARKBLUE);
-  DrawEllipse(width / 5, 120, 25, 20, YELLOW);
-  DrawEllipseLines(width / 5, 120, 30, 25, YELLOW);
 #pragma region imgui
   rlImGuiBegin();
 
@@ -110,15 +164,36 @@ void UpdateDrawFrame(void) {
   ImGui::PopStyleColor(2);
 #pragma endregion
 
-  ImGui::Begin("Test");
+  ImGui::Begin("Algorithm Visualizer");
 
-  ImGui::Text("Hello");
-  ImGui::Button("Button");
-  ImGui::Button("Button2");
+  ImGui::Text("Settings");
+#if defined(PLATFORM_WEB)
+  if (ImGui::Button("Toggle Web Console")) {
+    toggle_console();
+  }
+#endif
+  if (algorithmState == AlgorithmState::Idle) {
+    ImGui::Button("Add node");
 
+    if (ImGui::Button("Start")) {
+      algorithmState = AlgorithmState::Stepping;
+      //  resetAlgorithm();
+    }
+  }
+
+  if (algorithmState == AlgorithmState::Stepping && ImGui::Button("Step")) {
+    // stepAlgorithm();
+  }
+  if (algorithmState == AlgorithmState::Stepping && ImGui::Button("Run")) {
+    algorithmState = AlgorithmState::Running;
+  }
+  if (algorithmState == AlgorithmState::Running && ImGui::Button("Pause")) {
+    algorithmState = AlgorithmState::Stepping;
+  }
   ImGui::End();
 
-  DrawText("Congrats! You created your first window!", 190, 200, 20, LIGHTGRAY);
+  DrawText("Congrats! You created your first window!", (width / 2) - 100,
+           height / 2, 20, LIGHTGRAY);
 
 #pragma region imgui
   rlImGuiEnd();
@@ -128,5 +203,6 @@ void UpdateDrawFrame(void) {
     ImGui::RenderPlatformWindowsDefault();
   }
 #pragma endregion
+
   EndDrawing();
 }

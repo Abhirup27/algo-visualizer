@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 
-    <title>raylib web game</title>
+    <title>Algorithm Visualizer</title>
 
     <meta name="title" content="raylib web game">
     <meta name="description" content="New raylib web videogame, developed using raylib videogames library">
@@ -66,7 +66,13 @@ mlxfNFiP5mw4wlbMh4F5Ddxp5jNINBdCEz9zPOC1zD7Q0HBdmXndwv0TMtydEdzlWJT4VZ8Qt9Qn4/on
 jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaBBfOTCGHM2aEbZi1+gO\
 1XTWVXMnzrhAn5DSOZVsiQlHnSITKzGj6DeTcZWc/3oy7h9//PF4PL4BlvsWrb6RE+oAAAAASUVORK5CYII=');
       }
-
+        html, body {
+          font: arial;
+          margin: 0;
+          padding: 0;
+          height: 100%;
+          overflow: hidden;
+        }
       .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
       div.emscripten { text-align: center; }
       div.emscripten_border { border: 1px solid black; }
@@ -75,7 +81,8 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
       canvas.emscripten {
         border: 0px none;
         background: black;
-        width: 100%;
+        width: 100vw;
+        height: 100vh;
       }
 
       .spinner {
@@ -136,7 +143,7 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
         margin-right: 20px;
       }
 
-      #output {
+    /*  #output {
         border-left: 0px none;
         border-right: 0px none;
         border-bottom: 0px none;
@@ -151,8 +158,19 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
         color: rgb(37, 174, 38);
         font-family: 'Lucida Console', Monaco, monospace;
         outline: none;
-      }
-
+      } */
+      #output {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 140px;
+    background: rgba(0,0,0,0.8);
+    color: #25ae26;
+    font-family: 'Lucida Console', Monaco, monospace;
+    overflow-y: auto;
+    /*pointer-events: none; /* so clicks go through to canvas */
+    }
       input[type=button] {
         background-color: lightgray;
         border: 4px solid darkgray;
@@ -171,7 +189,7 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
     </style>
   </head>
   <body>
-    <div id="header">
+    <!-- <div id="header">
         <a id="logo" href="https://www.raylib.com"></a>
 
         <div class="spinner" id='spinner'></div>
@@ -187,12 +205,13 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
           <progress value="0" max="100" id="progress" hidden=1></progress>
         </div>
     </div>
-
+    -->
+    <textarea id="output" rows="8"></textarea>
     <div class="emscripten_border">
       <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
     </div>
 
-    <textarea id="output" rows="8"></textarea>
+    
 
     <script type='text/javascript' src="https://cdn.jsdelivr.net/gh/eligrey/FileSaver.js/dist/FileSaver.min.js"> </script>
     <script type='text/javascript'>
@@ -213,10 +232,11 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
             saveAs(blob, localFSname);
         }
     </script>
+    
     <script type='text/javascript'>
-        var statusElement = document.querySelector('#status');
-        var progressElement = document.querySelector('#progress');
-        var spinnerElement = document.querySelector('#spinner');
+        //var statusElement = document.querySelector('#status');
+        //var progressElement = document.querySelector('#progress');
+        //var spinnerElement = document.querySelector('#spinner');
         var Module = {
             preRun: [],
             postRun: [],
@@ -269,18 +289,18 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
 
                 if (m) {
                     text = m[1];
-                    progressElement.value = parseInt(m[2])*100;
-                    progressElement.max = parseInt(m[4])*100;
-                    progressElement.hidden = true;
-                    spinnerElement.hidden = false;
+                  //  progressElement.value = parseInt(m[2])*100;
+                //    progressElement.max = parseInt(m[4])*100;
+                //    progressElement.hidden = true;
+                //    spinnerElement.hidden = false;
                 } else {
-                    progressElement.value = null;
-                    progressElement.max = null;
-                    progressElement.hidden = true;
-                    if (!text) spinnerElement.style.display = 'none';
+                    //progressElement.value = null;
+                    //progressElement.max = null;
+                    //progressElement.hidden = true;
+                    //if (!text) spinnerElement.style.display = 'none';
                 }
 
-                statusElement.innerHTML = text;
+                //statusElement.innerHTML = text;
             },
             totalDependencies: 0,
             monitorRunDependencies: function(left) {
@@ -294,12 +314,12 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
 
         window.onerror = function() {
             Module.setStatus('Exception thrown, see JavaScript console');
-            spinnerElement.style.display = 'none';
+           // spinnerElement.style.display = 'none';
             Module.setStatus = function(text) { if (text) Module.printErr('[post-exception status] ' + text); };
         };
+        
     </script>
-
-    <!-- REF: https://developers.google.com/web/updates/2018/11/web-audio-autoplay -->
+    <!--
     <script type='text/javascript'>
         var audioBtn = document.querySelector('#btn-audio');
 
@@ -329,6 +349,9 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
             else audioBtn.value = "🔈 RESUME";
         }
     </script>
+    -->
+        <!-- REF: https://developers.google.com/web/updates/2018/11/web-audio-autoplay -->
+
     {{{ SCRIPT }}}
   </body>
 </html>
