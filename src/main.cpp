@@ -15,11 +15,11 @@
 #include <emscripten/html5.h>
 
 EM_JS(void, toggle_console, (), {
-  console = document.getElementById("output");
-  console.hidden = !console.hidden;
+  var output = document.getElementById("output");
+  output.hidden = !output.hidden;
 })
 EM_JS(int, canvas_set_size, (), {
-  canvas = document.getElementById("canvas");
+  var canvas = document.getElementById("canvas");
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   return window.innerWidth * window.innerHeight;
@@ -157,54 +157,59 @@ int main(void) {
 
 void UpdateDrawFrame(void) {
   // Calculate coordinates, sizes before drawing anything.
-  if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-    Vector2 delta = GetMouseDelta();
-    delta = Vector2Scale(delta, -1.0f / g_camera.zoom);
-    g_camera.target = Vector2Add(g_camera.target, delta);
-  }
-  float wheel = GetMouseWheelMove();
-  if (wheel != 0) {
-    // Get the world point that is under the mouse
-    Vector2 mouseWorldPos = GetScreenToWorld2D(GetMousePosition(), g_camera);
-
-    // Set the offset to where the mouse is
-    g_camera.offset = GetMousePosition();
-
-    // Set the target to match, so that the camera maps the world space point
-    // under the cursor to the screen space point under the cursor at any zoom
-    g_camera.target = mouseWorldPos;
-
-    // Zoom increment
-    // Uses log scaling to provide consistent zoom speed
-    float scale = 0.2f * wheel;
-    g_camera.zoom = Clamp(expf(logf(g_camera.zoom) + scale), 0.125f, 64.0f);
-  }
-  Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), g_camera);
-  mouseCollider.x = mouseWorld.x - mouseCollider.width / 2;
-  mouseCollider.y = mouseWorld.y - mouseCollider.height / 2;
-
-  if (CheckCollisionRecs(mouseCollider, root->collider) &&
-      selectedNode == nullptr) {
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-#if defined(PLATFORM_WEB)
-      print("selected");
-#endif
-      selectedNode = root;
+  if (!g_io->WantCaptureMouse) {
+    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+      Vector2 delta = GetMouseDelta();
+      delta = Vector2Scale(delta, -1.0f / g_camera.zoom);
+      g_camera.target = Vector2Add(g_camera.target, delta);
     }
-    // print("Collision");
-  } else if (selectedNode != nullptr &&
-             !CheckCollisionRecs(selectedNode->collider, testNode->collider)) {
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-      selectedNode = nullptr;
+
+    float wheel = GetMouseWheelMove();
+    if (wheel != 0) {
+      // Get the world point that is under the mouse
+      Vector2 mouseWorldPos = GetScreenToWorld2D(GetMousePosition(), g_camera);
+
+      // Set the offset to where the mouse is
+      g_camera.offset = GetMousePosition();
+
+      // Set the target to match, so that the camera maps the world space point
+      // under the cursor to the screen space point under the cursor at any zoom
+      g_camera.target = mouseWorldPos;
+
+      // Zoom increment
+      // Uses log scaling to provide consistent zoom speed
+      float scale = 0.2f * wheel;
+      g_camera.zoom = Clamp(expf(logf(g_camera.zoom) + scale), 0.125f, 64.0f);
     }
-  }
-  if (selectedNode != nullptr) {
     Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), g_camera);
-    selectedNode->pos = mouseWorld;
-    selectedNode->collider.x = mouseWorld.x - selectedNode->collider.width / 2;
-    selectedNode->collider.y = mouseWorld.y - selectedNode->collider.height / 2;
-  }
+    mouseCollider.x = mouseWorld.x - mouseCollider.width / 2;
+    mouseCollider.y = mouseWorld.y - mouseCollider.height / 2;
 
+    if (CheckCollisionRecs(mouseCollider, root->collider) &&
+        selectedNode == nullptr) {
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+#if defined(PLATFORM_WEB)
+        print("selected");
+#endif
+        selectedNode = root;
+      }
+      // print("Collision");
+    } else if (selectedNode != nullptr &&
+               !CheckCollisionRecs(selectedNode->collider,
+                                   testNode->collider)) {
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        selectedNode = nullptr;
+      }
+    }
+    if (selectedNode != nullptr) {
+      Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), g_camera);
+      selectedNode->pos = mouseWorld;
+      selectedNode->collider.x =
+          mouseWorld.x - selectedNode->collider.width / 2;
+      selectedNode->collider.y =
+          mouseWorld.y - selectedNode->collider.height / 2;
+    }
+  }
   BeginDrawing();
 
   ClearBackground(RAYWHITE);
@@ -237,10 +242,9 @@ void UpdateDrawFrame(void) {
 
   ImGui::PushStyleColor(ImGuiCol_WindowBg, {});
   ImGui::PushStyleColor(ImGuiCol_DockingEmptyBg, {});
-  ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
+  ImGui::DockSpaceOverViewport(ImGui::GetMainViewport(),
+                               ImGuiDockNodeFlags_PassthruCentralNode);
   ImGui::PopStyleColor(2);
-#pragma endregion
-
   ImGui::Begin("Algorithm Visualizer");
 
   ImGui::Text("Settings");
@@ -267,15 +271,15 @@ void UpdateDrawFrame(void) {
   if (algorithmState == AlgorithmState::Running && ImGui::Button("Pause")) {
     algorithmState = AlgorithmState::Stepping;
   }
-  ImGui::End();
-
-#pragma region imgui
-  rlImGuiEnd();
 
   if (g_io->ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
     ImGui::UpdatePlatformWindows();
     ImGui::RenderPlatformWindowsDefault();
   }
+
+  ImGui::End();
+  rlImGuiEnd();
+
 #pragma endregion
 
   EndDrawing();

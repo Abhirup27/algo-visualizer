@@ -143,22 +143,6 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
         margin-right: 20px;
       }
 
-    /*  #output {
-        border-left: 0px none;
-        border-right: 0px none;
-        border-bottom: 0px none;
-        padding-left: 0;
-        padding-right: 0;
-        width: 100%;
-        height: 140px;
-        margin: 0 auto;
-        margin-top: 10px;
-        display: block;
-        background-color: black;
-        color: rgb(37, 174, 38);
-        font-family: 'Lucida Console', Monaco, monospace;
-        outline: none;
-      } */
       #output {
     position: absolute;
     bottom: 0;
@@ -189,23 +173,6 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
     </style>
   </head>
   <body>
-    <!-- <div id="header">
-        <a id="logo" href="https://www.raylib.com"></a>
-
-        <div class="spinner" id='spinner'></div>
-        <div class="emscripten" id="status">Downloading...</div>
-
-        <span id='controls'>
-          <span><input type="button" value="📜 SOURCE CODE" onclick="location.href='https://github.com/raysan5/raylib';"/></span>
-          <span><input type="button" value="🖵 FULLSCREEN" onclick="Module.requestFullscreen(false, false)"></span>
-          <span><input type="button" id="btn-audio" value="🔇 MUTE" onclick="toggleAudio()"></span>
-        </span>
-
-        <div class="emscripten">
-          <progress value="0" max="100" id="progress" hidden=1></progress>
-        </div>
-    </div>
-    -->
     <textarea id="output" rows="8"></textarea>
     <div class="emscripten_border">
       <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
@@ -234,9 +201,6 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
     </script>
     
     <script type='text/javascript'>
-        //var statusElement = document.querySelector('#status');
-        //var progressElement = document.querySelector('#progress');
-        //var spinnerElement = document.querySelector('#spinner');
         var Module = {
             preRun: [],
             postRun: [],
@@ -289,18 +253,9 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
 
                 if (m) {
                     text = m[1];
-                  //  progressElement.value = parseInt(m[2])*100;
-                //    progressElement.max = parseInt(m[4])*100;
-                //    progressElement.hidden = true;
-                //    spinnerElement.hidden = false;
                 } else {
-                    //progressElement.value = null;
-                    //progressElement.max = null;
-                    //progressElement.hidden = true;
-                    //if (!text) spinnerElement.style.display = 'none';
                 }
 
-                //statusElement.innerHTML = text;
             },
             totalDependencies: 0,
             monitorRunDependencies: function(left) {
@@ -319,38 +274,6 @@ jwE50AGjLCVuS8Yt4H7OgZLKK5EKOsLviEWJSL/+0uMi7gLUSBseYwqEbXvSHCec1CJvZPyHCmYQffaB
         };
         
     </script>
-    <!--
-    <script type='text/javascript'>
-        var audioBtn = document.querySelector('#btn-audio');
-
-        // An array of all contexts to resume on the page
-        const audioContexList = [];
-        (function() {
-            // A proxy object to intercept AudioContexts and
-            // add them to the array for tracking and resuming later
-            self.AudioContext = new Proxy(self.AudioContext, {
-                construct(target, args) {
-                    const result = new target(...args);
-                    audioContexList.push(result);
-                    if (result.state == "suspended") audioBtn.value = "🔈 RESUME";
-                    return result;
-                }
-            });
-        })();
-
-        function toggleAudio() {
-            var resumed = false;
-            audioContexList.forEach(ctx => {
-                if (ctx.state == "suspended") { ctx.resume(); resumed = true; }
-                else if (ctx.state == "running") ctx.suspend();
-            });
-
-            if (resumed) audioBtn.value = "🔇 MUTE";
-            else audioBtn.value = "🔈 RESUME";
-        }
-    </script>
-    -->
-        <!-- REF: https://developers.google.com/web/updates/2018/11/web-audio-autoplay -->
 
     {{{ SCRIPT }}}
   </body>
