@@ -109,7 +109,7 @@ endif()
 # DEFINES
 # -------------------------------
 if(EMSCRIPTEN)
-    target_compile_definitions("${PROJECT_NAME}" PUBLIC RESOURCES_PATH="/resources/")
+  target_compile_definitions("${PROJECT_NAME}" PUBLIC RESOURCES_PATH="/resources/")
 else()
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         target_compile_definitions("${PROJECT_NAME}" PUBLIC

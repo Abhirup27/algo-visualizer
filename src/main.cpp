@@ -24,6 +24,7 @@ EM_JS(int, canvas_set_size, (), {
   canvas.height = window.innerHeight;
   return window.innerWidth * window.innerHeight;
 })
+EM_JS(void, print_float, (float string), { Module.print(string); })
 
 EM_JS(void, print, (const char *string),
       { Module.print(UTF8ToString(string)); })
@@ -42,11 +43,21 @@ ImGuiIO *g_io = nullptr;
 int width = 1280;
 int height = 720;
 Camera2D g_camera = {0};
-
+Font g_font;
 Rectangle mouseCollider{0U, 0U, 15U, 15U};
-
+Vector2 mouseWorldPos = {0, 0};
 void UpdateDrawFrame(void);
 
+enum class InteractionMode {
+  None, // can hover and delete
+  NodeSelect,
+  NodeCreate,
+  EdgeCreate,
+  EdgeEdit,
+};
+InteractionMode g_mode = InteractionMode::None;
+bool im_gui_g_mode_pesist = false;
+void HandleInput(void);
 /**
  * States of the algorithm.
  * */
@@ -57,31 +68,60 @@ AlgorithmState algorithmState = AlgorithmState::Idle;
 std::queue<int> q;
 std::vector<bool> visited;
 
-struct Node_A {
+struct Edge {
+  size_t from;
+  size_t to;
+};
+size_t hoveredEdgeIndex = SIZE_MAX;
+
+struct Node {
   Vector2 pos;
+  Vector2 oldPos;
   uint16_t radius;
   Rectangle collider;
 
   int64_t data;
-};
-struct Node_L {
-  Vector2 pos;
-  uint16_t radius;
-  Rectangle collider;
-
-  int64_t data;
-  Node_L *edges;
+  std::vector<int> edges;
 };
 
-Node_L *root = (Node_L *)malloc(sizeof(Node_L));
-Node_L *testNode = (Node_L *)malloc(sizeof(Node_L));
+// allocate array of nodes
+std::vector<Node> nodes;
+std::vector<Edge> edges;
 
-Node_L *selectedNode = nullptr;
-Node_L *selectedNodeOrigin = nullptr;
+Node *root = nullptr;
+
+Node *selectedNode = nullptr;
+Node *selectedNodeOrigin = nullptr;
+
+/**
+ * Helper functions.
+ * */
+bool IsMouseHoveringEdge(const Vector2 &mouse, const Vector2 &p1,
+                         const Vector2 &p2, float thickness = 5.0f) {
+  // Vector from p1 to p2
+  Vector2 edge = Vector2Subtract(p2, p1);
+  Vector2 mouseVec = Vector2Subtract(mouse, p1);
+
+  float edgeLenSq = Vector2LengthSqr(edge);
+  if (edgeLenSq == 0.0f)
+    return false;
+
+  // Project mouseVec onto edge (clamped to [0,1])
+  float t = Vector2DotProduct(mouseVec, edge) / edgeLenSq;
+  t = Clamp(t, 0.0f, 1.0f);
+
+  // Closest point on the edge
+  Vector2 closest = Vector2Add(p1, Vector2Scale(edge, t));
+
+  // Distance from mouse to closest point
+  float dist = Vector2Distance(mouse, closest);
+  return dist <= thickness;
+}
+
 int main(void) {
 
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-
+  g_font = LoadFont("./resources/font/alpha_beta.png");
 #if defined(PLATFORM_WEB)
   printf("%d", canvas_set_size());
 
@@ -90,28 +130,22 @@ int main(void) {
 #endif
 
   InitWindow(width, height, "Algorithm Visualizer - raylib");
+  Node newNode;
+  newNode.radius = 15;
 
-  root->pos = {static_cast<float>(width) / 2.0f,
-               static_cast<float>(height) / 2.0f};
-  root->radius = 10;
-  root->collider = {root->pos.x - root->radius, root->pos.y - root->radius, 15,
-                    15};
-  testNode->pos = {static_cast<float>(width) / 2.0f + 50.0f,
-                   static_cast<float>(height) / 2.0f};
-  testNode->radius = 10;
-  testNode->collider = {testNode->pos.x - testNode->radius,
-                        testNode->pos.y - testNode->radius, 15, 15};
+  newNode.pos = {(float)(width / 2), (float)(height / 2)};
+  newNode.collider = {newNode.pos.x - newNode.radius,
+                      newNode.pos.y - newNode.radius, (float)newNode.radius * 2,
+                      (float)newNode.radius * 2};
+  newNode.data = 0;
+
+  nodes.push_back(newNode);
+  root = &nodes[0];
 
 #pragma region imgui
   rlImGuiSetup(true);
 
-  // you can use whatever imgui theme you like!
-  // ImGui::StyleColorsDark();
-  // imguiThemes::yellow();
-  // imguiThemes::gray();
   imguiThemes::green();
-  // imguiThemes::red();
-  // imguiThemes::embraceTheDarkness();
 
   // ImGuiIO &io = ImGui::GetIO(); (void)io;
 
@@ -136,8 +170,7 @@ int main(void) {
 
   emscripten_set_main_loop(UpdateDrawFrame, 0, 1);
 #else
-  SetTargetFPS(60); // Set our game to run at 60 frames-per-second
-  //--------------------------------------------------------------------------------------
+  SetTargetFPS(60);
 
   // Main game loop
   while (!WindowShouldClose()) // Detect window close button or ESC key
@@ -156,51 +189,164 @@ int main(void) {
 }
 
 void UpdateDrawFrame(void) {
+
+  // Update window dimensions
+#if defined(PLATFORM_WEB)
+  emscripten_get_canvas_element_size("#canvas", &width, &height);
+#elif defined(PLATFORM_DESKTOP)
+  width = GetScreenWidth();
+  height = GetScreenHeight();
+#endif
+
   // Calculate coordinates, sizes before drawing anything.
   if (!g_io->WantCaptureMouse) {
-    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-      Vector2 delta = GetMouseDelta();
-      delta = Vector2Scale(delta, -1.0f / g_camera.zoom);
-      g_camera.target = Vector2Add(g_camera.target, delta);
-    }
+    HandleInput();
+
+    mouseWorldPos = GetScreenToWorld2D(GetMousePosition(), g_camera);
 
     float wheel = GetMouseWheelMove();
     if (wheel != 0) {
       // Get the world point that is under the mouse
-      Vector2 mouseWorldPos = GetScreenToWorld2D(GetMousePosition(), g_camera);
 
-      // Set the offset to where the mouse is
       g_camera.offset = GetMousePosition();
 
       // Set the target to match, so that the camera maps the world space point
       // under the cursor to the screen space point under the cursor at any zoom
       g_camera.target = mouseWorldPos;
 
-      // Zoom increment
       // Uses log scaling to provide consistent zoom speed
       float scale = 0.2f * wheel;
       g_camera.zoom = Clamp(expf(logf(g_camera.zoom) + scale), 0.125f, 64.0f);
     }
-    Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), g_camera);
-    mouseCollider.x = mouseWorld.x - mouseCollider.width / 2;
-    mouseCollider.y = mouseWorld.y - mouseCollider.height / 2;
+    mouseCollider.x = mouseWorldPos.x - mouseCollider.width / 2;
+    mouseCollider.y = mouseWorldPos.y - mouseCollider.height / 2;
+  }
+  BeginDrawing();
 
-    if (CheckCollisionRecs(mouseCollider, root->collider) &&
-        selectedNode == nullptr) {
-      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+  ClearBackground(RAYWHITE);
+
+  BeginMode2D(g_camera);
+
+  /*if (!g_io->WantCaptureMouse) {
+    DrawRectangleRec(mouseCollider, BLUE);
+  }*/
+  for (size_t i = 0; i < edges.size(); i++) {
+    Color col = (i == hoveredEdgeIndex) ? RED : DARKGRAY;
+    DrawLineEx(nodes[edges[i].from].pos, nodes[edges[i].to].pos, 3, col);
+  }
+  if (selectedNodeOrigin != nullptr) {
+    DrawLineEx(selectedNodeOrigin->pos,
+               GetScreenToWorld2D(GetMousePosition(), g_camera), 3, RED);
+  }
+
+  for (size_t i = 0; i < nodes.size(); i++) {
+    DrawCircleV(nodes[i].pos, nodes[i].radius,
+                (selectedNode == &nodes[i]) ? BLUE
+                : (root == &nodes[i])       ? GOLD
+                                            : RED);
+
+    // DrawCircleLines(nodes[i].pos.x, nodes[i].pos.y, nodes[i].radius,
+    // BLACK); DrawRectangleRec(nodes[i].collider, YELLOW);
+    char idText[10];
+    sprintf(idText, "%d", (int)i);
+    Vector2 textSize = MeasureTextEx(GetFontDefault(), idText, 20, 1);
+    // DrawText(idText, nodes[i].pos.x - textSize.x / 2,
+    //        nodes[i].pos.y - textSize.y / 2, 20, WHITE);
+    DrawTextEx(GetFontDefault(), idText, nodes[i].pos - (textSize / 2), 20.0f,
+               1.0f, WHITE);
+  }
+
+  EndMode2D();
+  DrawTextEx(GetFontDefault(), "Algorithm Visualizer",
+             {width / 2.0f - 150.0f, 100.0f}, 20.0f, 1.0f, LIGHTGRAY);
+
+#pragma region imgui
+  rlImGuiBegin();
+
+  // Create docking space with proper flags
+  ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
+  ImGui::PushStyleColor(ImGuiCol_DockingEmptyBg, ImVec4(0, 0, 0, 0));
+  ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_PassthruCentralNode;
+  ImGui::DockSpaceOverViewport(ImGui::GetMainViewport(), dockspace_flags);
+  ImGui::PopStyleColor(2);
+
+  if (ImGui::Begin("Algorithm Visualizer")) {
+    ImGui::Text("Settings");
+
 #if defined(PLATFORM_WEB)
-        print("selected");
+    if (ImGui::Button("Toggle Web Console")) {
+      toggle_console();
+    }
 #endif
-        selectedNode = root;
-      }
-      // print("Collision");
-    } else if (selectedNode != nullptr &&
-               !CheckCollisionRecs(selectedNode->collider,
-                                   testNode->collider)) {
-      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        selectedNode = nullptr;
+
+    if (algorithmState == AlgorithmState::Idle) {
+
+      if (IsKeyPressed(KEY_A) || ImGui::Button("Add Node")) {
+        g_mode = InteractionMode::NodeSelect;
+        if (selectedNode == nullptr && selectedNodeOrigin == nullptr) {
+          Node newNode;
+          Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), g_camera);
+          newNode.pos = mouseWorld;
+          newNode.oldPos = mouseWorld;
+          newNode.radius = 15;
+          newNode.collider = {
+              newNode.pos.x - newNode.radius, newNode.pos.y - newNode.radius,
+              (float)newNode.radius * 2, (float)newNode.radius * 2};
+          newNode.data = nodes.size();
+
+          nodes.push_back(newNode);
+          selectedNode = &nodes.back();
+        }
       }
     }
+
+    if (ImGui::Button("Start")) {
+      algorithmState = AlgorithmState::Stepping;
+      // resetAlgorithm();
+    }
+  }
+
+  if (algorithmState == AlgorithmState::Stepping) {
+    if (ImGui::Button("Step")) {
+      // stepAlgorithm();
+    }
+    if (ImGui::Button("Run")) {
+      algorithmState = AlgorithmState::Running;
+    }
+  }
+
+  if (algorithmState == AlgorithmState::Running) {
+    if (ImGui::Button("Pause")) {
+      algorithmState = AlgorithmState::Stepping;
+    }
+  }
+
+  const char *stateNames[] = {"Idle", "Stepping", "Running", "Done"};
+  ImGui::Text("Current State: %s", stateNames[(int)algorithmState]);
+
+  ImGui::Text("Nodes: %d", (int)nodes.size());
+  ImGui::Text("Edges: %d", (int)edges.size());
+
+  if (selectedNodeOrigin != nullptr) {
+    ImGui::Text("Selected node for edge: %d",
+                (int)(selectedNodeOrigin - &nodes[0]));
+  }
+
+  ImGui::End();
+
+  rlImGuiEnd();
+#pragma endregion
+
+  EndDrawing();
+}
+
+#pragma region handling_input
+void HandleInput(void) {
+
+  switch (g_mode) {
+
+  case InteractionMode::NodeSelect:
+    // Handle node selection
     if (selectedNode != nullptr) {
       Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), g_camera);
       selectedNode->pos = mouseWorld;
@@ -209,78 +355,193 @@ void UpdateDrawFrame(void) {
       selectedNode->collider.y =
           mouseWorld.y - selectedNode->collider.height / 2;
     }
-  }
-  BeginDrawing();
 
-  ClearBackground(RAYWHITE);
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      bool clickedOnNode = false;
 
-#if defined(PLATFORM_WEB)
-  emscripten_get_canvas_element_size("#canvas", &width, &height);
-  // printf("%d", width);
-  // print_alert(width);
-#elif defined(PLATFORM_DESKTOP)
-  width = GetScreenWidth();
-  height = GetScreenHeight();
-#endif
+      for (size_t i = 0; i < nodes.size(); i++) {
 
-  BeginMode2D(g_camera);
-  DrawRectangleRec(mouseCollider, BLUE);
+        if (CheckCollisionRecs(mouseCollider, nodes[i].collider)) {
+          clickedOnNode = true;
 
-  DrawRectangleRec(root->collider, GREEN);
-  DrawRectangleRec(testNode->collider, RED);
-  DrawLineEx({0U, 0U}, {static_cast<float>(width), static_cast<float>(height)},
-             3, RED);
-  DrawCircleLines(root->pos.x, root->pos.y, root->radius, RED);
+          if (selectedNode == nullptr) {
+            selectedNode = &nodes[i];
+            nodes[i].oldPos = nodes[i].pos;
+            break;
+          } else if (selectedNode != &nodes[i]) {
+            break;
 
-  DrawText("Algorithm Visualizer", (width / 2) - 100, height / 2, 20,
-           LIGHTGRAY);
+          } else if (selectedNode == &nodes[i]) {
+            // Deselect if clicking on the same node
+            clickedOnNode = false;
+            // selectedNode = nullptr;
+          }
+        }
+      }
 
-  EndMode2D();
-
-#pragma region imgui
-  rlImGuiBegin();
-
-  ImGui::PushStyleColor(ImGuiCol_WindowBg, {});
-  ImGui::PushStyleColor(ImGuiCol_DockingEmptyBg, {});
-  ImGui::DockSpaceOverViewport(ImGui::GetMainViewport(),
-                               ImGuiDockNodeFlags_PassthruCentralNode);
-  ImGui::PopStyleColor(2);
-  ImGui::Begin("Algorithm Visualizer");
-
-  ImGui::Text("Settings");
-#if defined(PLATFORM_WEB)
-  if (ImGui::Button("Toggle Web Console")) {
-    toggle_console();
-  }
-#endif
-  if (algorithmState == AlgorithmState::Idle) {
-    ImGui::Button("Add node");
-
-    if (ImGui::Button("Start")) {
-      algorithmState = AlgorithmState::Stepping;
-      //  resetAlgorithm();
+      // Deselect if clicking on empty space
+      if (!clickedOnNode && selectedNode != nullptr) {
+        selectedNode = nullptr;
+      }
     }
+
+    break;
+
+  case InteractionMode::EdgeCreate:
+    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+
+      for (size_t i = 0; i < nodes.size(); i++) {
+        if (CheckCollisionRecs(mouseCollider, nodes[i].collider)) {
+          if (selectedNodeOrigin == nullptr) {
+            g_mode = InteractionMode::EdgeCreate;
+            selectedNodeOrigin = &nodes[i];
+
+            return;
+          } else if (selectedNodeOrigin != nullptr &&
+                     selectedNodeOrigin != &nodes[i]) {
+            // create edge and set selectedNodeOrigin to null
+
+            Edge newEdge;
+            newEdge.from =
+                selectedNodeOrigin - &nodes[0]; // Get index of origin node
+            newEdge.to = i;                     // Index of destination node
+
+            // Check if edge already exists
+            bool edgeExists = false;
+            for (const auto &edge : edges) {
+              if ((edge.from == newEdge.from && edge.to == newEdge.to) ||
+                  (edge.from == newEdge.to && edge.to == newEdge.from)) {
+                edgeExists = true;
+                break;
+              }
+            }
+
+            if (!edgeExists) {
+              edges.push_back(newEdge);
+
+              // Also add to node's edge list
+              nodes[newEdge.from].edges.push_back(newEdge.to);
+              nodes[newEdge.to].edges.push_back(newEdge.from);
+            }
+
+            selectedNodeOrigin = nullptr;
+          } else {
+            // Clicked on the same node - deselect
+            selectedNodeOrigin = nullptr;
+          }
+          return;
+        }
+      }
+      selectedNodeOrigin = nullptr;
+    }
+    break;
+
+  case InteractionMode::EdgeEdit:
+    // Maybe highlight edge, allow delete
+    for (size_t i = 0; i < edges.size(); i++) {
+      if (IsMouseHoveringEdge(mouseWorldPos, nodes[edges[i].from].pos,
+                              nodes[edges[i].to].pos)) {
+        g_mode = InteractionMode::EdgeEdit;
+        hoveredEdgeIndex = i;
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) &&
+            selectedNodeOrigin == nullptr) {
+          selectedNodeOrigin = &nodes[edges[i].from];
+          std::vector<Edge>::iterator it = edges.begin();
+          it += i;
+          edges.erase(it);
+          hoveredEdgeIndex = SIZE_MAX;
+          return;
+        }
+      }
+    }
+    if (selectedNodeOrigin != nullptr &&
+        IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+      for (size_t i = 0; i < nodes.size(); i++) {
+        if (CheckCollisionRecs(mouseCollider, nodes[i].collider)) {
+          if (&nodes[i] != selectedNodeOrigin) {
+            // create new edge
+            Edge newEdge;
+            int originNodeIdx = (int)(selectedNodeOrigin - &nodes[0]);
+            newEdge.from = originNodeIdx;
+            newEdge.to = i;
+            edges.push_back(newEdge);
+
+            nodes[newEdge.from].edges.push_back(newEdge.to);
+            nodes[newEdge.to].edges.push_back(newEdge.from);
+            selectedNodeOrigin = nullptr;
+          }
+        }
+      }
+    }
+
+    break;
+
+  case InteractionMode::None:
+  default:
+    // Camera panning, idle state
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      for (size_t i = 0; i < nodes.size(); i++) {
+        if (CheckCollisionRecs(mouseCollider, nodes[i].collider)) {
+          nodes[i].oldPos = nodes[i].pos;
+          selectedNode = &nodes[i];
+          g_mode = InteractionMode::NodeSelect;
+
+          return;
+        }
+      }
+    }
+    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+
+      for (size_t i = 0; i < nodes.size(); i++) {
+        if (CheckCollisionRecs(mouseCollider, nodes[i].collider)) {
+          g_mode = InteractionMode::EdgeCreate;
+          selectedNodeOrigin = &nodes[i];
+
+          return;
+        }
+      }
+    }
+    for (size_t i = 0; i < edges.size(); i++) {
+      if (IsMouseHoveringEdge(mouseWorldPos, nodes[edges[i].from].pos,
+                              nodes[edges[i].to].pos)) {
+        hoveredEdgeIndex = i;
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) &&
+            selectedNodeOrigin == nullptr) {
+          g_mode = InteractionMode::EdgeEdit;
+
+          selectedNodeOrigin = &nodes[edges[i].from];
+          std::vector<Edge>::iterator it = edges.begin();
+          it += i;
+          edges.erase(it);
+          hoveredEdgeIndex = SIZE_MAX;
+        }
+
+        return;
+      }
+    }
+
+    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+      Vector2 delta = GetMouseDelta();
+      delta = Vector2Scale(delta, -1.0f / g_camera.zoom);
+      g_camera.target = Vector2Add(g_camera.target, delta);
+    }
+
+    break;
   }
 
-  if (algorithmState == AlgorithmState::Stepping && ImGui::Button("Step")) {
-    // stepAlgorithm();
-  }
-  if (algorithmState == AlgorithmState::Stepping && ImGui::Button("Run")) {
-    algorithmState = AlgorithmState::Running;
-  }
-  if (algorithmState == AlgorithmState::Running && ImGui::Button("Pause")) {
-    algorithmState = AlgorithmState::Stepping;
-  }
+  if (IsKeyPressed(KEY_ESCAPE)) {
+    g_mode = InteractionMode::None;
+    if (selectedNode != nullptr) {
+      selectedNode->pos = selectedNode->oldPos;
+      selectedNode->collider = {selectedNode->pos.x - selectedNode->radius,
+                                selectedNode->pos.y - selectedNode->radius,
+                                (float)selectedNode->radius * 2,
+                                (float)selectedNode->radius * 2};
+    }
 
-  if (g_io->ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
-    ImGui::UpdatePlatformWindows();
-    ImGui::RenderPlatformWindowsDefault();
+    selectedNode = nullptr;
+    selectedNodeOrigin = nullptr;
   }
-
-  ImGui::End();
-  rlImGuiEnd();
-
-#pragma endregion
-
-  EndDrawing();
 }
+#pragma endregion
