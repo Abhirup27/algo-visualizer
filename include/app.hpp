@@ -1,14 +1,15 @@
 #pragma once
+#include "app_state.hpp"
 #include "arena.hpp"
 #include "raylib.h"
-#include "scene.hpp"
 #include "scene_registry.hpp"
+#include "utils.hpp"
 #include <cstdlib>
 #include <memory>
 #if defined(PLATFORM_WEB)
 #include "web.hpp"
 #endif
-
+class Scene;
 struct App {
   Arena m_arena;
 

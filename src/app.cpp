@@ -80,7 +80,8 @@ void initApp(App *app, IVector2 resolution, const char *font) {
   app->m_font = LoadFont(path);
   if (IsWindowReady()) {
     //allocate memory to load empty scene;
-    app->current_scene = arena_create<Menu>(&app->m_arena, &app->m_font);
+    app->current_scene =
+        arena_create<Menu>(&app->m_arena, &app->m_font, &app->m_arena);
     app->current_scene->init();
     // app->instance->run();
     notify_algorithms();
@@ -140,7 +141,7 @@ void App::m_LoadAlgorithm(int algorithm_id) {
   switch (info.category) {
   case SceneType::Graph:
 
-    current_scene = arena_create<GraphScene>(&m_arena, &m_font);
+    current_scene = arena_create<GraphScene>(&m_arena, &m_font, m_arena);
     current_scene->init();
     break;
 

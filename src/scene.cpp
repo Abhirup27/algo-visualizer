@@ -1,9 +1,8 @@
 #include "scene.hpp"
-
 #include "app.hpp"
 #include "colors.h"
-#include "graph_scene.hpp"
 #include "raylib.h"
+#include "scene.hpp"
 #include "scene_registry.hpp"
 #include <cstdint>
 #include <cstdio>
@@ -12,9 +11,9 @@ Scene::Scene()
     : m_SceneType(SceneType::Graph), g_camera({{0}}), m_updateRes(false) {}
 
 Scene::~Scene() {}
-Scene::Scene(Font *font)
-    : m_SceneType(SceneType::Graph), m_font(font), g_camera({{0}}),
-      m_showUI(true) {}
+Scene::Scene(Font *font, Arena parentArena)
+    : m_parentArena(parentArena), m_SceneType(SceneType::Graph), m_font(font),
+      g_camera({{0}}), m_showUI(true) {}
 
 void Scene::init() {
 
@@ -68,11 +67,9 @@ void Scene::saveCameraPos() {
   camera_old_zoom = g_camera.zoom;
 }
 
-int Scene::getCurrentAlgorithmId() { return 1; }
 void Scene::onResize() { m_updateRes = true; }
 
 void Scene::resetCameraPos() {}
-const char *Scene::getStackJSON() {}
 const char *Scene::getAdjJSON() {}
 const char *Scene::getNodeListJSON() {}
 const char *Scene::getRootNodeJSON() {}
@@ -90,9 +87,9 @@ void set_node_val(uint32_t node_id, int value) {
   App::instance->current_scene->setNodeVal(node_id, value);
 }
 
-const char *get_stack_json() {
-  return App::instance->current_scene->getStackJSON();
-}
+// const char *get_stack_json() {
+//   // return App::instance->current_scene->getStackJSON();
+// }
 const char *get_adj_json() {
   return App::instance->current_scene->getAdjJSON();
 }
@@ -121,8 +118,8 @@ void update_mode(int primary, int secondary) {
   App::instance->current_scene->updateMode(primary, secondary);
 }
 
-void step_algo() { App::instance->current_scene->stepAlgo(); }
-void start_algo() { App::instance->current_scene->startAlgo(); }
+void step_algo() {}
+void start_algo() {}
 }
 
 EMSCRIPTEN_BINDINGS(scene_bindings) {
@@ -132,18 +129,12 @@ EMSCRIPTEN_BINDINGS(scene_bindings) {
       .function("onResize", &Scene::onResize)
       .function("saveCameraPos", &Scene::saveCameraPos)
       .function("resetCameraPos", &Scene::resetCameraPos)
-      .function("getCurrentAlgorithmId", &Scene::getCurrentAlgorithmId)
-      .function("getStackJSON", &Scene::getStackJSON,
-                emscripten::allow_raw_pointers())
       .function("getAdjJSON", &Scene::getAdjJSON,
                 emscripten::allow_raw_pointers())
       .function("getNodeListJSON", &Scene::getNodeListJSON,
                 emscripten::allow_raw_pointers())
       .function("getRootNodeJSON", &Scene::getRootNodeJSON,
                 emscripten::allow_raw_pointers())
-      .function("startAlgo", &Scene::startAlgo)
-      .function("stepAlgo", &Scene::stepAlgo)
-      .function("resetAlgo", &Scene::resetAlgo)
       .function("setRootNode", &Scene::setRootNode)
       .function("setNodeVal", &Scene::setNodeVal)
       .function("setHoverState", &Scene::setHoverState)

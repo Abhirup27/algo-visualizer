@@ -1,4 +1,7 @@
 #pragma once
+#include "algorithm.hpp"
+#include "app_state.hpp"
+#include "arena.hpp"
 #include "raylib.h"
 #include "scene_registry.hpp"
 #include "utils.hpp"
@@ -8,23 +11,15 @@
 #include <emscripten/em_macros.h>
 #import <emscripten/em_types.h>
 #include <stdint.h>
-typedef enum {
-  MENU = 0,
-  SCENE,
-  GRAPH_SCENE,
-  QUIT
-} AppState;
-typedef enum AlgorithmState {
-  Idle,
-  Stepping,
-  Running,
-  Done
-} AlgorithmState;
-// enum class AlgorithmState {Idle, Stepping, Running, Done};
 class Scene {
   AppState state;
 
 public:
+  Arena m_parentArena;
+  Arena m_algoArena;
+
+  IAlgorithm *m_algorithmInstance;
+
   SceneType m_SceneType;
   RenderTexture2D target;
   Font *m_font;
@@ -37,13 +32,15 @@ public:
   Vector2 mouse_world_pos;
 
   Scene();
-  Scene(Font *);
+  Scene(Font *, Arena);
   ~Scene();
   virtual void init() = 0;
   virtual void draw(IVector2 *) = 0;
   virtual void update(IVector2 *) = 0;
   virtual void input() {};
 
+  virtual void createAlgorithmInstance(AlgorithmId) = 0;
+  virtual void switchAlgorithm(AlgorithmId) = 0;
   // JS bridge functions
 
   virtual void resetScene() = 0;
@@ -53,16 +50,11 @@ public:
   virtual void toggleUI();
   void saveCameraPos();
   virtual void resetCameraPos() = 0;
-  int getCurrentAlgorithmId();
 
-  // these bridge functions will be moved to algorithm base class
-  virtual const char *getStackJSON();
   virtual const char *getAdjJSON();
   virtual const char *getNodeListJSON();
   virtual const char *getRootNodeJSON();
-  virtual void startAlgo() = 0;
-  virtual void stepAlgo() = 0;
-  virtual void resetAlgo() = 0;
+
   virtual void setRootNode(uint32_t);
   virtual void setNodeVal(uint32_t, int);
 };
@@ -78,12 +70,10 @@ void EMSCRIPTEN_KEEPALIVE set_hover_state(bool, uint32_t);
 void EMSCRIPTEN_KEEPALIVE save_camera_pos();
 void EMSCRIPTEN_KEEPALIVE set_camera_pos_to_old_pos();
 
-const char *EMSCRIPTEN_KEEPALIVE get_stack_json();
 const char *EMSCRIPTEN_KEEPALIVE get_adj_json();
 const char *EMSCRIPTEN_KEEPALIVE get_node_list_json();
 const char *EMSCRIPTEN_KEEPALIVE get_root_node_json();
 
-int get_current_algorithm_id();
 void start_algo();
 void step_algo();
 }

@@ -1,3 +1,5 @@
+
+#pragma once
 struct IVector2 {
   int x, y;
 };

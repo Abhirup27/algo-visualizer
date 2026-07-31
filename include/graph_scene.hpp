@@ -1,5 +1,4 @@
 #pragma once
-#include "app.hpp"
 #include "colors.h"
 #include "debug_panel_fmt.hpp"
 #include "events.hpp"
@@ -18,10 +17,63 @@
 #import <emscripten/em_types.h>
 #endif // PLATOFRM_WEB
 
-class GraphScene : public Scene {
-  AlgorithmId a_id;
+struct Edge {
+  size_t from;
+  size_t to;
+};
+
+struct Node {
+  uint32_t id;
+
+  Vector2 pos;
+  Vector2 oldPos;
+  uint16_t radius;
+  Rectangle collider;
+
+  int64_t data;
+  std::vector<int> edges;
+};
+struct GraphView {
+  std::vector<Node> &nodes;
+  std::vector<Edge> &edges;
+  std::unordered_map<uint32_t, size_t> &id_to_node_idx;
+  uint32_t &root_id;
+};
+
+class IGraphAlgorithm : public IAlgorithm {
 
 public:
+  GraphView *m_graphView = nullptr;
+  float m_algoSpeed = 1.0f;
+
+  IGraphAlgorithm();
+
+  IGraphAlgorithm(AlgorithmId, AlgorithmState);
+
+  void reset() override;
+  void reset(GraphView &);
+  virtual void traverse() = 0;
+
+  virtual const char *getStackJSON();
+  virtual const char *getQueueJSON();
+};
+
+class A_DFS : IGraphAlgorithm {
+
+public:
+  //stack
+  //
+  //
+  std::stack<uint32_t> stack_dfs;
+  const char *getStackJSON() override;
+};
+
+//this is what I had implemented
+class A_DFS_ADV : public IGraphAlgorithm {
+
+public:
+  A_DFS_ADV(AlgorithmId, AlgorithmState);
+
   enum class DFSPhase {
     ENTER,
     EXIT
@@ -41,7 +93,33 @@ public:
       return "UNKNOWN";
     }
   }
-  AlgorithmState algorithm_state;
+
+  std::stack<DFSFrame> dfs_stack;
+  std::vector<bool> visited;
+
+  void dfs();
+  void createStack();
+
+  void reset() override;
+  virtual void reset(GraphView);
+  virtual void start() override;
+  virtual void step() override;
+  virtual void stop() override;
+  virtual void pause() override;
+
+  virtual void traverse() override;
+
+  virtual void unload() override;
+
+  const char *getStackJSON() override;
+};
+
+IGraphAlgorithm *g_CreateGraphAlgorithm(AlgorithmId id, Arena *algoArena);
+class GraphScene : public Scene {
+  AlgorithmId a_id;
+
+public:
+  IGraphAlgorithm *m_algorithmInstance;
 
   // void GuiAlgoViz(BaseGuiState *state);
 
@@ -57,34 +135,16 @@ public:
     EdgeEdit = 6,
     EdgeNONSENSE = 7
   } m_input_mode;
+
   int main_mode = 0; // 0=FREE, 1=NODE, 2=EDGE
   int sub_mode = 0;  // 0=SELECT, 1=CREATE, 2=EDIT
-  struct Edge {
-    size_t from;
-    size_t to;
-  };
-
-  struct Node {
-    uint32_t id;
-
-    Vector2 pos;
-    Vector2 oldPos;
-    uint16_t radius;
-    Rectangle collider;
-
-    int64_t data;
-    std::vector<int> edges;
-  };
+  //
 
   // Node *root;
   uint32_t root_id;
   std::unordered_map<uint32_t, size_t> id_to_node_idx;
   std::vector<Node> nodes;
   std::vector<Edge> edges;
-
-  std::stack<DFSFrame> dfs_stack;
-
-  std::vector<bool> visited;
 
   //NOTE: Refactor these iterators to ids
   std::vector<Node>::iterator selected_node;
@@ -94,7 +154,7 @@ public:
   size_t hoveredEdgeIdx = SIZE_MAX;
   size_t hoveredNodeIdx = SIZE_MAX;
 
-  GraphScene(Font *);
+  GraphScene(Font *, Arena);
   void init() override;
   void input() override;
   void update_input_mode();
@@ -104,25 +164,22 @@ public:
   bool IsMouseHoveringEdge(const Vector2 &, const Vector2 &, const Vector2 &,
                            float thickness = 5.0f);
 
-  void dfs();
-  void createStack();
-
   void resetScene() override;
+  void createAlgorithmInstance(AlgorithmId) override;
+
+  // void switchAlgorithm(AlgorithmId id, GraphView graph);
+  void switchAlgorithm(AlgorithmId id) override;
+  void switchAlgorithm(AlgorithmId id, GraphView graph);
   //updates the camera position when the mouse is hovring over an UI element
   void gotoNode(IVector2 *resolution);
   void gotoPos(IVector2 *resolution);
   void resetCameraPos() override;
-  int getCurrentAlgoId();
 
   void updateMode(int, int) override;
   void setRootNode(uint32_t) override;
   void setNodeVal(uint32_t, int) override;
   void setHoverState(bool, uint32_t) override;
 
-  void startAlgo() override;
-  void stepAlgo() override;
-  void resetAlgo() override;
-  const char *getStackJSON() override;
   const char *getAdjJSON() override;
   const char *getNodeListJSON() override;
   const char *getRootNodeJSON() override;

@@ -1,9 +1,11 @@
 #include "graph_scene.hpp"
+#include "app.hpp"
+#include "arena.hpp"
 #include "events.hpp"
 #include "raylib.h"
 #include "raymath.h"
 #include "rlgl.h"
-#include "scene.hpp"
+#include "scene_registry.hpp"
 #include "web.hpp"
 #include <cstdio>
 #include <format>
@@ -19,29 +21,6 @@
 void set_mode(int a, int b) {}
 #endif // !PLATFORM_WEB
 
-void GraphScene::resetAlgo() {}
-void GraphScene::startAlgo() {
-  algorithm_state = Running;
-  while (!dfs_stack.empty())
-    dfs_stack.pop();
-
-  visited.assign(nodes.size(), false);
-
-  if (!nodes.empty()) {
-    dfs_stack.push({root_id, GraphScene::DFSPhase::ENTER}); // root
-
-    EventDescriptor e(EventAction::AlgoStateUpdate, EventTarget::Stack);
-    dispatchSceneEvent(e);
-  }
-}
-
-void GraphScene::stepAlgo() {
-  algorithm_state = Stepping;
-  traverse();
-  EventDescriptor e(EventAction::AlgoStateUpdate, EventTarget::Stack);
-  dispatchSceneEvent(e);
-}
-
 void GraphScene::resetCameraPos() {
   Scene::resetCameraPos();
 
@@ -55,8 +34,8 @@ void GraphScene::updateMode(int main, int sub) {
 }
 
 void GraphScene::setHoverState(bool hover, uint32_t node_id) {
-  if (GraphScene::scene_ptr->algorithm_state == Running ||
-      GraphScene::scene_ptr->algorithm_state == Stepping) {
+  if (m_algorithmInstance->algorithm_state == Running ||
+      m_algorithmInstance->algorithm_state == Stepping) {
     return;
   }
 
@@ -64,24 +43,36 @@ void GraphScene::setHoverState(bool hover, uint32_t node_id) {
 
   if (!hover) {
 
-    GraphScene::scene_ptr->hoveredNodeIdx = SIZE_MAX;
+    hoveredNodeIdx = SIZE_MAX;
     //gotoPos will run in this condition and move the camera back to old pos;
 
   } else {
-
-    GraphScene::scene_ptr->hoveredNodeIdx =
-        GraphScene::scene_ptr->id_to_node_idx[node_id];
+    hoveredNodeIdx = id_to_node_idx[node_id];
   }
 
-  GraphScene::scene_ptr->moveCamera = true;
-}
-int get_current_algorithm_id() {
-  return GraphScene::scene_ptr->getCurrentAlgoId();
+  moveCamera = true;
 }
 
-GraphScene::GraphScene(Font *font)
+void GraphScene::createAlgorithmInstance(AlgorithmId id) {}
 
-    : Scene(font), a_id(AlgorithmId::DFS_A), algorithm_state(Idle),
+void GraphScene::switchAlgorithm(AlgorithmId id) {
+  GraphView view{nodes, edges, id_to_node_idx, root_id};
+
+  switchAlgorithm(id, view);
+}
+
+void GraphScene::switchAlgorithm(AlgorithmId id, GraphView graph) {
+  if (m_algorithmInstance)
+    m_algorithmInstance->IGraphAlgorithm::~IGraphAlgorithm();
+  arena_reset(&m_algoArena);
+
+  m_algorithmInstance = g_CreateGraphAlgorithm(id, &m_algoArena);
+  m_algorithmInstance->reset(graph);
+}
+
+GraphScene::GraphScene(Font *font, Arena parentArena)
+
+    : Scene(font, parentArena), a_id(AlgorithmId::DFS_A),
       m_input_mode(InteractionMode::None) {}
 
 GraphScene *GraphScene::scene_ptr = nullptr;
@@ -95,11 +86,16 @@ void GraphScene::init() {
   g_camera.offset = {resolution->x * 0.5f, resolution->y * 0.5f};
   g_camera.zoom = 1.5f;
 
+  void *algoMem = arena_alloc(&m_parentArena, 1024 * 1024 * 1);
+
+  arena_init(&m_algoArena, algoMem, 1024 * 1024 * 1);
+
+  m_algorithmInstance = g_CreateGraphAlgorithm(a_id, &m_algoArena);
+  m_algorithmInstance->reset();
+
   Node newNode;
   newNode.id = 0;
-
   newNode.radius = 15;
-
   newNode.pos = {g_camera.target.x, g_camera.target.y};
   // newNode.pos = {(float)(resolution->x / 2), (float)(resolution->y / 2)};
   newNode.collider = {newNode.pos.x - newNode.radius,
@@ -297,7 +293,8 @@ void GraphScene::input() {
 
   case InteractionMode::NodeCreate:
 
-    if (algorithm_state == Idle || algorithm_state == Done) {
+    if (m_algorithmInstance->algorithm_state == Idle ||
+        m_algorithmInstance->algorithm_state == Done) {
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         bool clickedOnNode = false;
 
@@ -388,7 +385,8 @@ void GraphScene::input() {
       }
     }
 
-    if (algorithm_state == Idle || algorithm_state == Done) {
+    if (m_algorithmInstance->algorithm_state == Idle ||
+        m_algorithmInstance->algorithm_state == Done) {
       if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_DELETE)) {
         if (selected_node != nodes.end() && nodes.begin() != nodes.end()) {
 
@@ -444,7 +442,8 @@ void GraphScene::input() {
 
   case InteractionMode::EdgeCreate:
 
-    if (algorithm_state == Idle || algorithm_state == Done) {
+    if (m_algorithmInstance->algorithm_state == Idle ||
+        m_algorithmInstance->algorithm_state == Done) {
       if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
 
         for (size_t i = 0; i < nodes.size(); i++) {
@@ -496,7 +495,8 @@ void GraphScene::input() {
   case InteractionMode::EdgeEdit:
     // Maybe highlight edge, allow delete
 
-    if (algorithm_state == Idle || algorithm_state == Done) {
+    if (m_algorithmInstance->algorithm_state == Idle ||
+        m_algorithmInstance->algorithm_state == Done) {
       for (size_t i = 0; i < edges.size(); i++) {
         if (IsMouseHoveringEdge(mouse_world_pos, nodes[edges[i].from].pos,
                                 nodes[edges[i].to].pos)) {
@@ -543,7 +543,8 @@ void GraphScene::input() {
 
   case InteractionMode::EdgeSelect:
 
-    if (algorithm_state == Idle || algorithm_state == Done) {
+    if (m_algorithmInstance->algorithm_state == Idle ||
+        m_algorithmInstance->algorithm_state == Done) {
       for (size_t i = 0; i < edges.size(); i++) {
         if (IsMouseHoveringEdge(mouse_world_pos, nodes[edges[i].from].pos,
                                 nodes[edges[i].to].pos)) {
@@ -666,7 +667,8 @@ void GraphScene::input() {
     selected_node = nodes.end();
     selected_edge_origin = nodes.end();
   }
-  if (algorithm_state == Idle || algorithm_state == Done) {
+  if (m_algorithmInstance->algorithm_state == Idle ||
+      m_algorithmInstance->algorithm_state == Done) {
     if (IsKeyPressed(KEY_A)) {
       m_input_mode = InteractionMode::NodeCreate;
       main_mode = 1;
@@ -791,63 +793,40 @@ void GraphScene::update(IVector2 *resolution) {
 }
 
 void GraphScene::traverse() {
-  if (dfs_stack.empty()) {
-    algorithm_state = Done;
+  if (dynamic_cast<A_DFS_ADV *>(m_algorithmInstance)->dfs_stack.empty()) {
+    m_algorithmInstance->algorithm_state = Done;
     return;
   }
 
-  DFSFrame frame = dfs_stack.top();
-  dfs_stack.pop();
+  A_DFS_ADV::DFSFrame frame =
+      dynamic_cast<A_DFS_ADV *>(m_algorithmInstance)->dfs_stack.top();
+  dynamic_cast<A_DFS_ADV *>(m_algorithmInstance)->dfs_stack.pop();
 
   u_int32_t current = frame.node;
 
-  if (frame.phase == DFSPhase::ENTER) {
-    if (visited[current])
+  if (frame.phase == A_DFS_ADV::DFSPhase::ENTER) {
+    if (dynamic_cast<A_DFS_ADV *>(m_algorithmInstance)->visited[current])
       return;
     // we should only update the stack if it is not visited
     //
 
-    visited[current] = true;
+    dynamic_cast<A_DFS_ADV *>(m_algorithmInstance)->visited[current] = true;
     hoveredNodeIdx = current;
 
-    dfs_stack.push({current, DFSPhase::EXIT});
+    dynamic_cast<A_DFS_ADV *>(m_algorithmInstance)
+        ->dfs_stack.push({current, A_DFS_ADV::DFSPhase::EXIT});
 
     // Push children in reverse order
     for (int i = nodes[id_to_node_idx[current]].edges.size() - 1; i >= 0; --i) {
       u_int32_t neighbor = nodes[id_to_node_idx[current]].edges[i];
-      if (!visited[neighbor]) {
-        dfs_stack.push({neighbor, DFSPhase::ENTER});
+      if (!dynamic_cast<A_DFS_ADV *>(m_algorithmInstance)->visited[neighbor]) {
+        dynamic_cast<A_DFS_ADV *>(m_algorithmInstance)
+            ->dfs_stack.push({neighbor, A_DFS_ADV::DFSPhase::ENTER});
       }
     }
   } else {
     hoveredNodeIdx = current;
   }
-}
-
-const char *GraphScene::getStackJSON() {
-
-  static std::string result;
-
-  std::stack<DFSFrame> copy = dfs_stack;
-  result.clear();
-
-  auto out = std::back_inserter(result);
-  std::format_to(out, "[");
-
-  bool first = true;
-  while (!copy.empty()) {
-    const DFSFrame &f = copy.top();
-    if (!first)
-      std::format_to(out, ",");
-    std::format_to(out, GET_STACK_FMT(DFS_A), f.node,
-                   dfsPhaseToString(f.phase));
-
-    copy.pop();
-    first = false;
-  }
-
-  std::format_to(out, "]");
-  return result.c_str();
 }
 
 const char *GraphScene::getAdjJSON() {
@@ -931,15 +910,16 @@ void GraphScene::resetScene() {
   nodes.clear();
   edges.clear();
   id_to_node_idx.clear();
-  visited.clear();
+  dynamic_cast<A_DFS_ADV *>(m_algorithmInstance)->visited.clear();
   // dfs_stack.clear();
   selected_node = nodes.end();
   hoveredNodeIdx = SIZE_MAX;
   hoveredEdgeIdx = SIZE_MAX;
   selected_edge_origin = nodes.end();
   root_id = 0;
-  while (!dfs_stack.empty()) {
-    dfs_stack.pop();
+  m_algorithmInstance->reset();
+  while (!dynamic_cast<A_DFS_ADV *>(m_algorithmInstance)->dfs_stack.empty()) {
+    dynamic_cast<A_DFS_ADV *>(m_algorithmInstance)->dfs_stack.pop();
   }
   dispatchSceneEvent({EventAction::Remove, EventTarget::Node, 0});
   dispatchSceneEvent({EventAction::Remove, EventTarget::Edge, 0});
@@ -980,4 +960,43 @@ void GraphScene::gotoPos(IVector2 *resolution) {
   }
 }
 
-int GraphScene::getCurrentAlgoId() { return std::to_underlying(a_id); }
+void IGraphAlgorithm::reset() {}
+void IGraphAlgorithm::reset(GraphView &graph) {
+  m_graphView = &graph;
+  // m_graphView->nodes = graph.nodes;
+  // m_graphView->edges = graph.edges;
+  // m_graphView->id_to_node_idx = graph.id_to_node_idx;
+  // m_graphView->root_id = graph.root_id;
+}
+
+// extern "C" {
+//
+// const char *get_stack_json() {
+//   return App::m_GetInstance()
+//       .current_scene->m_algorithmInstance->getStackJSON();
+// }
+// }
+
+IGraphAlgorithm *g_CreateGraphAlgorithm(AlgorithmId id, Arena *algoArena) {
+
+  switch (id) {
+  case AlgorithmId::DFS_A:
+
+    return arena_create<A_DFS_ADV>(algoArena, AlgorithmId::DFS_A,
+                                   AlgorithmState::Idle);
+    break;
+
+  default:
+    break;
+  }
+}
+IGraphAlgorithm::IGraphAlgorithm() : IAlgorithm() {}
+
+IGraphAlgorithm::IGraphAlgorithm(AlgorithmId id, AlgorithmState state)
+    : IAlgorithm(id) {
+  algorithm_state = state;
+}
+
+const char *IGraphAlgorithm::getStackJSON() {}
+
+const char *IGraphAlgorithm::getQueueJSON() {}
