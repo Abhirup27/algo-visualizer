@@ -6,10 +6,10 @@
 #include "scene_registry.hpp"
 #include "utils.hpp"
 #include <cstdint>
-#import <emscripten.h>
+#include <emscripten.h>
 #include <emscripten/bind.h>
 #include <emscripten/em_macros.h>
-#import <emscripten/em_types.h>
+#include <emscripten/em_types.h>
 #include <stdint.h>
 class Scene {
   AppState state;
@@ -18,7 +18,8 @@ public:
   Arena m_parentArena;
   Arena m_algoArena;
 
-  IAlgorithm *m_algorithmInstance;
+  // whatever algorithm is currently active for this scene. Derived scenes (GraphScene, SortScene) must use it.
+  IAlgorithm *m_algorithmInstance = nullptr;
 
   SceneType m_SceneType;
   RenderTexture2D target;
@@ -33,13 +34,12 @@ public:
 
   Scene();
   Scene(Font *, Arena);
-  ~Scene();
+  virtual ~Scene();
   virtual void init() = 0;
   virtual void draw(IVector2 *) = 0;
   virtual void update(IVector2 *) = 0;
   virtual void input() {};
 
-  virtual void createAlgorithmInstance(AlgorithmId) = 0;
   virtual void switchAlgorithm(AlgorithmId) = 0;
   // JS bridge functions
 
@@ -74,6 +74,6 @@ const char *EMSCRIPTEN_KEEPALIVE get_adj_json();
 const char *EMSCRIPTEN_KEEPALIVE get_node_list_json();
 const char *EMSCRIPTEN_KEEPALIVE get_root_node_json();
 
-void start_algo();
-void step_algo();
+void EMSCRIPTEN_KEEPALIVE start_algo();
+void EMSCRIPTEN_KEEPALIVE step_algo();
 }

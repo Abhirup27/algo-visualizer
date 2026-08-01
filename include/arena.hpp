@@ -1,18 +1,15 @@
-
 #pragma once
 #include <cassert>
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <stddef.h>
 #include <stdint.h>
 #include <utility>
-#ifndef ARENA_H
-#define ARENA_H
+
 #ifndef DEFAULT_ALIGNMENT
 #define DEFAULT_ALIGNMENT (2 * sizeof(void *))
 #endif // !DEFAULT_ALIGNMENT
-
-#include <cstddef>
-#include <cstdint>
 
 // ----Arena----//
 struct Arena {
@@ -38,8 +35,6 @@ bool arena_is_power_of_two(uintptr_t);
 uintptr_t arena_align_forward(uintptr_t ptr, size_t align);
 
 template <typename T, typename... Args>
-T *arena_create(Arena *, Args &&...args);
-template <typename T, typename... Args>
 T *arena_create(Arena *arena, Args &&...args) {
   void *mem = arena_alloc(arena, sizeof(T), alignof(T));
 
@@ -59,7 +54,3 @@ struct ArenaTemp {
 
 ArenaTemp arena_savepoint_create(Arena *);
 void arena_savepoint_restore(ArenaTemp);
-
-////////////////////////
-
-#endif

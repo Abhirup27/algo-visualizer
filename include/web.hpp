@@ -1,7 +1,8 @@
 #ifndef WEB_H
 #define WEB_H
 
-#include "utils.h"
+#include "raylib.h"
+#include "utils.hpp"
 #if defined(PLATFORM_WEB)
 #include <emscripten/console.h>
 #include <emscripten/em_js.h>
@@ -26,8 +27,8 @@ char *list_all_files(const char *);
 
 void print_console(const char *);
 void print_console_float(float);
-em_str_callback_func onPreloadSuccess(const char *);
-em_str_callback_func onPreloadError(const char *);
+void onPreloadSuccess(const char *);
+void onPreloadError(const char *);
 
 void list_files();
 

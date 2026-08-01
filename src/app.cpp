@@ -3,7 +3,7 @@
 #include "raylib.h"
 #include "scene.hpp"
 #include "scene_registry.hpp"
-#include "utils.h"
+#include "utils.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -84,7 +84,6 @@ void initApp(App *app, IVector2 resolution, const char *font) {
         arena_create<Menu>(&app->m_arena, &app->m_font, &app->m_arena);
     app->current_scene->init();
     // app->instance->run();
-    notify_algorithms();
     emscripten_set_main_loop(app->m_RunWrapper, 60, 1);
   }
 }
@@ -101,6 +100,8 @@ IVector2 *App::m_GetResolution() { return &m_resolution; }
 
 void App::m_Run(void) {
   if (App::m_app_state != QUIT) {
+    if (!current_scene)
+      return;
     if (App::m_mouse_hovering == true) {
 
       current_scene->input();
@@ -133,17 +134,23 @@ void App::m_LoadAlgorithm(int algorithm_id) {
 
   const AlgorithmInfo &info = ALGORITHMS[static_cast<int>(algorithm_id)];
   if (current_scene != nullptr) {
-    //current_scene->m_unload();
-    current_scene->Scene::~Scene();
+    // this runs the live scene's own destructor (freeing its nodes/edges/algorithm containers) rather than only Scene's near-empty base destructor.
+    current_scene->~Scene();
   }
   arena_reset(&m_arena);
+  current_scene = nullptr;
 
   switch (info.category) {
-  case SceneType::Graph:
+  case SceneType::Graph: {
 
-    current_scene = arena_create<GraphScene>(&m_arena, &m_font, m_arena);
+    GraphScene *graphScene =
+        arena_create<GraphScene>(&m_arena, &m_font, m_arena);
+    current_scene = graphScene;
     current_scene->init();
+    // init() always starts a GraphScene on the default algorithm (DFS_A)
+    graphScene->switchAlgorithm(info.id);
     break;
+  }
 
   case SceneType::Sort:
 

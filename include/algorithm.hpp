@@ -1,7 +1,7 @@
 
 #pragma once
 #include "scene_registry.hpp"
-#import <emscripten.h>
+#include <emscripten.h>
 #include <emscripten/bind.h>
 typedef enum AlgorithmState {
   Idle,

@@ -1,5 +1,5 @@
-#import "algorithm.hpp"
-#import "app.hpp"
+#include "algorithm.hpp"
+#include "app.hpp"
 #include "scene.hpp"
 #include "utils.hpp"
 EMSCRIPTEN_BINDINGS(algorithm_bindings) {
@@ -18,10 +18,12 @@ const char *IAlgorithm::getQueueJSON() { return ""; }
 extern "C" {
 
 const char *get_stack_json() {
-  App::m_GetInstance().current_scene->m_algorithmInstance->getStackJSON();
+  IAlgorithm *algo = App::m_GetInstance().current_scene->m_algorithmInstance;
+  return algo ? algo->getStackJSON() : "";
 }
 
 const char *get_queue_json() {
-  App::m_GetInstance().current_scene->m_algorithmInstance->getQueueJSON();
+  IAlgorithm *algo = App::m_GetInstance().current_scene->m_algorithmInstance;
+  return algo ? algo->getQueueJSON() : "";
 }
 }

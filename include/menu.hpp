@@ -18,6 +18,5 @@ public:
   void setHoverState(bool, uint32_t) override;
   void resetCameraPos() override;
 
-  void createAlgorithmInstance(AlgorithmId) override;
   void switchAlgorithm(AlgorithmId) override;
 };

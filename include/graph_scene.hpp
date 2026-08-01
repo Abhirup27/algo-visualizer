@@ -12,9 +12,9 @@
 #include <unordered_map>
 #include <vector>
 #if defined(PLATFORM_WEB)
-#import <emscripten.h>
+#include <emscripten.h>
 #include <emscripten/em_macros.h>
-#import <emscripten/em_types.h>
+#include <emscripten/em_types.h>
 #endif // PLATOFRM_WEB
 
 struct Edge {
@@ -46,81 +46,29 @@ public:
   GraphView *m_graphView = nullptr;
   float m_algoSpeed = 1.0f;
 
+  uint32_t m_currentNode = UINT32_MAX;
+
   IGraphAlgorithm();
 
   IGraphAlgorithm(AlgorithmId, AlgorithmState);
 
+  // clear this algorithm's own stack/queue/visited/etc state. Every algorithm must override this for GraphScene::resetScene()
   void reset() override;
-  void reset(GraphView &);
+
+  // binds the algorithm to the scene's graph and resets step state for it.  GraphScene owns a single, stable GraphView (GraphScene::m_graphView)
+  virtual void reset(GraphView &);
   virtual void traverse() = 0;
 
   virtual const char *getStackJSON();
   virtual const char *getQueueJSON();
 };
 
-class A_DFS : IGraphAlgorithm {
-
-public:
-  //stack
-  //
-  //
-  std::stack<uint32_t> stack_dfs;
-  const char *getStackJSON() override;
-};
-
-//this is what I had implemented
-class A_DFS_ADV : public IGraphAlgorithm {
-
-public:
-  A_DFS_ADV(AlgorithmId, AlgorithmState);
-
-  enum class DFSPhase {
-    ENTER,
-    EXIT
-  };
-
-  struct DFSFrame {
-    uint32_t node;
-    DFSPhase phase;
-  };
-  inline const char *dfsPhaseToString(DFSPhase phase) {
-    switch (phase) {
-    case DFSPhase::ENTER:
-      return "ENTER";
-    case DFSPhase::EXIT:
-      return "EXIT";
-    default:
-      return "UNKNOWN";
-    }
-  }
-
-  std::stack<DFSFrame> dfs_stack;
-  std::vector<bool> visited;
-
-  void dfs();
-  void createStack();
-
-  void reset() override;
-  virtual void reset(GraphView);
-  virtual void start() override;
-  virtual void step() override;
-  virtual void stop() override;
-  virtual void pause() override;
-
-  virtual void traverse() override;
-
-  virtual void unload() override;
-
-  const char *getStackJSON() override;
-};
-
 IGraphAlgorithm *g_CreateGraphAlgorithm(AlgorithmId id, Arena *algoArena);
+
 class GraphScene : public Scene {
   AlgorithmId a_id;
 
 public:
-  IGraphAlgorithm *m_algorithmInstance;
-
   // void GuiAlgoViz(BaseGuiState *state);
 
   enum class InteractionMode {
@@ -146,6 +94,8 @@ public:
   std::vector<Node> nodes;
   std::vector<Edge> edges;
 
+  GraphView m_graphView;
+
   //NOTE: Refactor these iterators to ids
   std::vector<Node>::iterator selected_node;
   std::vector<Node>::iterator selected_edge_origin;
@@ -165,11 +115,8 @@ public:
                            float thickness = 5.0f);
 
   void resetScene() override;
-  void createAlgorithmInstance(AlgorithmId) override;
 
-  // void switchAlgorithm(AlgorithmId id, GraphView graph);
   void switchAlgorithm(AlgorithmId id) override;
-  void switchAlgorithm(AlgorithmId id, GraphView graph);
   //updates the camera position when the mouse is hovring over an UI element
   void gotoNode(IVector2 *resolution);
   void gotoPos(IVector2 *resolution);
@@ -184,6 +131,5 @@ public:
   const char *getNodeListJSON() override;
   const char *getRootNodeJSON() override;
 
-  void traverse();
   static GraphScene *scene_ptr;
 };

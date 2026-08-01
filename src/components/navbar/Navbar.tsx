@@ -19,8 +19,7 @@ export default function Navbar({
           <button
             type="button"
             onClick={(e) => {
-              const ptr: Number = wasmModule.current._get_scene_ptr();
-              wasmModule.current._start_algo(ptr);
+              wasmModule.current._start_algo();
             }}
           >
             Start
@@ -28,9 +27,8 @@ export default function Navbar({
           <button
             type="button"
             onClick={(e) => {
-              const ptr = wasmModule.current._get_scene_ptr();
 
-              wasmModule.current._step_algo(ptr);
+              wasmModule.current._step_algo();
             }}
           >
             Step

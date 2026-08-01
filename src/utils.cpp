@@ -1,5 +1,8 @@
 #include "utils.hpp"
 #include "raylib.h"
+
+const char *lastKey = "";
+
 const char *GetKeyNameCustom(int key) {
   switch (key) {
   case KEY_APOSTROPHE:

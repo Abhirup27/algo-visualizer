@@ -1,5 +1,10 @@
+#include "dfs.hpp"
+#include "debug_panel_fmt.hpp"
 #include "events.hpp"
-#include "graph_scene.hpp"
+#include <cstdint>
+#include <format>
+#include <iterator>
+#include <string>
 
 A_DFS_ADV::A_DFS_ADV(AlgorithmId id, AlgorithmState state) {
   m_algoId = id;
@@ -23,7 +28,6 @@ void A_DFS_ADV::start() {
 }
 
 void A_DFS_ADV::step() {
-
   algorithm_state = AlgorithmState::Stepping;
   traverse();
   EventDescriptor e(EventAction::AlgoStateUpdate, EventTarget::Stack);
@@ -33,7 +37,6 @@ void A_DFS_ADV::step() {
 void A_DFS_ADV::stop() {
   algorithm_state = AlgorithmState::Idle;
 
-  //empty stack;
   while (!dfs_stack.empty()) {
     dfs_stack.pop();
   }
@@ -41,14 +44,57 @@ void A_DFS_ADV::stop() {
 
 void A_DFS_ADV::pause() {}
 
-void A_DFS_ADV::traverse() {}
 void A_DFS_ADV::unload() {}
 
-void A_DFS_ADV::dfs() {}
-void A_DFS_ADV::createStack() {}
+void A_DFS_ADV::traverse() {
+  if (dfs_stack.empty()) {
+    algorithm_state = AlgorithmState::Done;
+    m_currentNode = UINT32_MAX;
+    return;
+  }
 
-void A_DFS_ADV::reset(GraphView graph) {
+  DFSFrame frame = dfs_stack.top();
+  dfs_stack.pop();
+
+  uint32_t current = frame.node;
+
+  if (frame.phase == DFSPhase::ENTER) {
+    if (visited[current])
+      return;
+
+    visited[current] = true;
+    m_currentNode = current;
+
+    dfs_stack.push({current, DFSPhase::EXIT});
+
+    // Push the children in reverse order so they pop off (and get visited) in their original left-to-right order.
+    const std::vector<int> &neighbors =
+        m_graphView->nodes[m_graphView->id_to_node_idx[current]].edges;
+    for (int i = static_cast<int>(neighbors.size()) - 1; i >= 0; --i) {
+      uint32_t neighbor = neighbors[i];
+      if (!visited[neighbor]) {
+        dfs_stack.push({neighbor, DFSPhase::ENTER});
+      }
+    }
+  } else {
+    m_currentNode = current;
+  }
+
+  if (dfs_stack.empty())
+    algorithm_state = AlgorithmState::Done;
+}
+
+void A_DFS_ADV::reset() {
+  while (!dfs_stack.empty())
+    dfs_stack.pop();
+  visited.clear();
+  m_currentNode = UINT32_MAX;
+  algorithm_state = AlgorithmState::Idle;
+}
+
+void A_DFS_ADV::reset(GraphView &graph) {
   IGraphAlgorithm::reset(graph);
+  reset();
   EventDescriptor e(EventAction::AlgoStateUpdate, EventTarget::Stack);
   dispatchSceneEvent(e);
 }
@@ -77,4 +123,3 @@ const char *A_DFS_ADV::getStackJSON() {
   std::format_to(out, "]");
   return result.c_str();
 }
-void A_DFS_ADV::reset() {}

@@ -10,7 +10,14 @@
 Scene::Scene()
     : m_SceneType(SceneType::Graph), g_camera({{0}}), m_updateRes(false) {}
 
-Scene::~Scene() {}
+Scene::~Scene() {
+  if (m_algorithmInstance) {
+    // Unqualified call -> virtual dispatch, runs the concrete algorithm's
+    // own destructor (frees its stack/queue/visited-set heap storage).
+    m_algorithmInstance->~IAlgorithm();
+    m_algorithmInstance = nullptr;
+  }
+}
 Scene::Scene(Font *font, Arena parentArena)
     : m_parentArena(parentArena), m_SceneType(SceneType::Graph), m_font(font),
       g_camera({{0}}), m_showUI(true) {}
@@ -70,9 +77,9 @@ void Scene::saveCameraPos() {
 void Scene::onResize() { m_updateRes = true; }
 
 void Scene::resetCameraPos() {}
-const char *Scene::getAdjJSON() {}
-const char *Scene::getNodeListJSON() {}
-const char *Scene::getRootNodeJSON() {}
+const char *Scene::getAdjJSON() { return ""; }
+const char *Scene::getNodeListJSON() { return ""; }
+const char *Scene::getRootNodeJSON() { return ""; }
 void Scene::setRootNode(uint32_t node_id) {}
 void Scene::setNodeVal(uint32_t node_id, int value) {}
 extern "C" {
@@ -87,9 +94,6 @@ void set_node_val(uint32_t node_id, int value) {
   App::instance->current_scene->setNodeVal(node_id, value);
 }
 
-// const char *get_stack_json() {
-//   // return App::instance->current_scene->getStackJSON();
-// }
 const char *get_adj_json() {
   return App::instance->current_scene->getAdjJSON();
 }
@@ -118,8 +122,16 @@ void update_mode(int primary, int secondary) {
   App::instance->current_scene->updateMode(primary, secondary);
 }
 
-void step_algo() {}
-void start_algo() {}
+void step_algo() {
+  IAlgorithm *algo = App::instance->current_scene->m_algorithmInstance;
+  if (algo)
+    algo->step();
+}
+void start_algo() {
+  IAlgorithm *algo = App::instance->current_scene->m_algorithmInstance;
+  if (algo)
+    algo->start();
+}
 }
 
 EMSCRIPTEN_BINDINGS(scene_bindings) {

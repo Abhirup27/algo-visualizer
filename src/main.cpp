@@ -1,4 +1,4 @@
-#include "utils.h"
+#include "utils.hpp"
 #if defined(PLATFORM_WEB)
 #include <emscripten/html5.h>
 #endif
@@ -14,7 +14,7 @@ int main() {
   App app;
   initApp(&app, {.x = 0, .y = 0}, "pixantiqua.png");
   if (!app.instance) {
-    TRACELOG(LOG_FATAL, "Failed to create window. Exiting");
+    // TRACELOG(LOG_FATAL, "Failed to create window. Exiting");
     return -1;
   }
 #if defined(PLATFORM_WEB)
@@ -25,7 +25,7 @@ int main() {
   // Main game loop
   while (!WindowShouldClose()) // Detect window close button or ESC key
   {
-    instance->run();
+    app.m_Run();
   }
 #endif
   return 0;

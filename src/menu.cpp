@@ -19,6 +19,4 @@ void Menu::resetScene() {}
 void Menu::updateMode(int main, int sec) {}
 void Menu::setHoverState(bool hover, uint32_t node_id) {}
 
-void Menu::createAlgorithmInstance(AlgorithmId) {}
-
 void Menu::switchAlgorithm(AlgorithmId) {}

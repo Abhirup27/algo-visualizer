@@ -1,7 +1,7 @@
 
 #ifdef PLATFORM_WEB
-#include "utils.h"
 #include "web.hpp"
+#include "utils.hpp"
 #include <stdlib.h>
 // Toggle console visibility
 
@@ -24,12 +24,12 @@ EM_JS(void, print_string, (const char *str),
 
 void print_console(const char *str) { print_string(str); };
 void print_console_float(float val) { print_float(val); };
-em_str_callback_func onPreloadSuccess(const char *filename) {
-  TRACELOG(LOG_INFO, "File loaded:", filename);
+void onPreloadSuccess(const char *filename) {
+  // TRACELOG(LOG_INFO, "File loaded: %s", filename);
 }
 
-em_str_callback_func onPreloadError(const char *fileName) {
-  TRACELOG(LOG_WARNING, "File failed to load:", fileName);
+void onPreloadError(const char *fileName) {
+  // TRACELOG(LOG_WARNING, "File failed to load: %s", fileName);
 }
 #include <stdlib.h> // For free()
 
@@ -80,4 +80,3 @@ void list_files() {
 }
 
 #endif // PLATFORM_WEB
-
