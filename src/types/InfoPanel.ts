@@ -5,11 +5,6 @@ export interface DFSStackFrame {
     node: number;
 }
 
-export interface DFS_AStackFrame {
-    node: number;
-    phase: string;
-}
-
 export interface DFS_AAdjMatFrame {
     node: number;
     edges: number[];
@@ -18,4 +13,12 @@ export interface DFS_AAdjMatFrame {
 export interface GraphNodeListFrame {
     node: number;
     data: number;
+}
+
+export interface GenericScriptStackFrame {
+    node: number;
+}
+
+export interface GenericScriptQueueFrame {
+    node: number;
 }

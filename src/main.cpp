@@ -14,7 +14,7 @@ int main() {
   App app;
   initApp(&app, {.x = 0, .y = 0}, "pixantiqua.png");
   if (!app.instance) {
-    // TRACELOG(LOG_FATAL, "Failed to create window. Exiting");
+    TRACELOG(LOG_FATAL, "Failed to create window. Exiting");
     return -1;
   }
 #if defined(PLATFORM_WEB)

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { EventActionLabel, EventTargetLabel } from "../../types/events";
-import type { MainModule, WasmModule } from "../../types/wasmmodule";
-import type { DFS_AStackFrame } from "../../types/InfoPanel";
+import type { MainModule } from "../../types/wasmmodule";
+import type { GenericScriptStackFrame } from "../../types/InfoPanel";
 import type { EventDescriptor } from "../../types/EventDescriptor";
 
 export default function StackView({
@@ -9,20 +9,23 @@ export default function StackView({
   onUpdate,
   wasmModule,
 }: {
-  items: DFS_AStackFrame[];
-  onUpdate: (stack: Array<DFS_AStackFrame>) => void;
+  items: GenericScriptStackFrame[];
+  onUpdate: (stack: Array<GenericScriptStackFrame>) => void;
   wasmModule: RefObject<MainModule>;
 }) {
-  const prevItems: RefObject<DFS_AStackFrame[]> = useRef<DFS_AStackFrame[]>([]);
-  const [newItems, SetNewItems] = useState<DFS_AStackFrame[]>([]);
+  const prevItems: RefObject<GenericScriptStackFrame[]> = useRef<GenericScriptStackFrame[]>([]);
+  const [newItems, SetNewItems] = useState<GenericScriptStackFrame[]>([]);
   useEffect(() => {
     const handler = (e: CustomEvent) => {
       const event: EventDescriptor = e.detail;
+      console.log(event.action, event.target);
       if (EventActionLabel[event.action] === EventActionLabel[3]) {
         if (EventTargetLabel[event.target] === EventTargetLabel[3]) {
-          const ptr = wasmModule.current._get_stack_json();
+
+          const ptr = wasmModule.current._get_script_stack_json();
           const json = wasmModule.current.UTF8ToString(ptr);
-          const stack: DFS_AStackFrame[] = JSON.parse(json);
+          const stack: GenericScriptStackFrame[] = JSON.parse(json);
+          console.log(stack);
           onUpdate(stack);
         }
       }
@@ -33,21 +36,13 @@ export default function StackView({
       window.removeEventListener("scene_event", handler as EventListener);
   }, []);
   useEffect(() => {
-    const prevSet = new Set(
-      prevItems.current.map((f) => `${f.node}${f.phase}`),
-    );
-    const newlyAdded = items.filter(
-      (item) => !prevSet.has(`${item.node}${item.phase}`),
-    );
+    const prevSet = new Set(prevItems.current.map((f) => `${f.node}`));
+    const newlyAdded = items.filter((item) => !prevSet.has(`${item.node}`));
 
     if (newlyAdded.length > 0) {
       SetNewItems(newlyAdded);
     }
     prevItems.current = items;
-    // items.map((itemc> => {
-    //   prevSet.has(item) ? undefined : SetNewItems([...newItems, item]);
-    //   prevItems.current.push(...newItems);
-    // });
   }, [items]);
 
   return (
@@ -62,11 +57,10 @@ export default function StackView({
                 : "stack-cell stack-element"
             }
           >
-            {item.node} {item.phase}
+            {item.node}
           </p>
         ))}
       </div>
     </>
   );
 }
-

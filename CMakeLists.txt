@@ -62,7 +62,7 @@ if(EMSCRIPTEN)
          -s ASSERTIONS=0 \
          --bind \
          --export-dynamic \
-         -s EXPORTED_FUNCTIONS='[\"_main\",\"_update_mode\",\"_step_algo\",\"_start_algo\", \"_on_resize\", \"_get_stack_json\", \"_get_adj_json\", \"_get_root_node_json\", \"_get_node_list_json\", \"_set_root_node\", \"_toggle_keybind_overlay\", \"_reset_scene\", \"_set_hover_state\", \"_save_camera_pos\", \"_set_camera_pos_to_old_pos\", \"_set_receive_inputs\", \"_set_algorithm\", \"_set_node_val\"]' \
+         -s EXPORTED_FUNCTIONS='[\"_main\",\"_update_mode\", \"_on_resize\",  \"_get_adj_json\", \"_get_root_node_json\", \"_get_node_list_json\", \"_set_root_node\", \"_toggle_keybind_overlay\", \"_reset_scene\", \"_reset_run_state\", \"_set_hover_state\", \"_save_camera_pos\", \"_set_camera_pos_to_old_pos\", \"_set_receive_inputs\", \"_set_algorithm\", \"_set_node_val\" , \"_script_stack_push\", \"_script_stack_pop\", \"_script_stack_size\", \"_script_queue_enqueue\", \"_script_queue_dequeue\", \"_script_queue_size\", \"_mark_visited\", \"_mark_discovered\", \"_set_active_node\", \"_add_node\", \"_add_edge\", \"_remove_node\", \"_remove_edge\", \"_set_algo_state\", \"_get_script_stack_json\", \"_get_script_queue_json\"]' \
          -s EXPORTED_RUNTIME_METHODS='[\"ccall\",\"cwrap\", \"UTF8ToString\"]' \
          --preload-file ${CMAKE_SOURCE_DIR}/resources@/resources \
          --use-preload-plugins"

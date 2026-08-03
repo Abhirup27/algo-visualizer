@@ -135,7 +135,9 @@ const TAG_TO_SUFFIX: Record<string, string> = {
   stack: "Stack",
   adjacencymatrix: "AdjMat",
   nodelist: "NodeList",
-  nodeeditinfo: "NodeEditInfo"
+  nodeeditinfo: "NodeEditInfo",
+  scriptstack: "ScriptStack",
+  scriptqueue: "ScriptQueue",
 };
 
 interface ParsedInterface {

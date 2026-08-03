@@ -40,5 +40,5 @@
 
 #define COLOR_VISITED       NORD14
 #define COLOR_DISCOVERED    NORD13
-#define COLOR_CURRENT       NORD8
+#define COLOR_CURRENT       NORD15
 #define COLOR_PATH          NORD15

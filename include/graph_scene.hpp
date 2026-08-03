@@ -7,6 +7,7 @@
 #include "scene_registry.hpp"
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <stack>
 #include <sys/types.h>
 #include <unordered_map>
@@ -33,40 +34,8 @@ struct Node {
   int64_t data;
   std::vector<int> edges;
 };
-struct GraphView {
-  std::vector<Node> &nodes;
-  std::vector<Edge> &edges;
-  std::unordered_map<uint32_t, size_t> &id_to_node_idx;
-  uint32_t &root_id;
-};
-
-class IGraphAlgorithm : public IAlgorithm {
-
-public:
-  GraphView *m_graphView = nullptr;
-  float m_algoSpeed = 1.0f;
-
-  uint32_t m_currentNode = UINT32_MAX;
-
-  IGraphAlgorithm();
-
-  IGraphAlgorithm(AlgorithmId, AlgorithmState);
-
-  // clear this algorithm's own stack/queue/visited/etc state. Every algorithm must override this for GraphScene::resetScene()
-  void reset() override;
-
-  // binds the algorithm to the scene's graph and resets step state for it.  GraphScene owns a single, stable GraphView (GraphScene::m_graphView)
-  virtual void reset(GraphView &);
-  virtual void traverse() = 0;
-
-  virtual const char *getStackJSON();
-  virtual const char *getQueueJSON();
-};
-
-IGraphAlgorithm *g_CreateGraphAlgorithm(AlgorithmId id, Arena *algoArena);
 
 class GraphScene : public Scene {
-  AlgorithmId a_id;
 
 public:
   // void GuiAlgoViz(BaseGuiState *state);
@@ -81,7 +50,6 @@ public:
 
     EdgeCreate = 5,
     EdgeEdit = 6,
-    EdgeNONSENSE = 7
   } m_input_mode;
 
   int main_mode = 0; // 0=FREE, 1=NODE, 2=EDGE
@@ -94,8 +62,6 @@ public:
   std::vector<Node> nodes;
   std::vector<Edge> edges;
 
-  GraphView m_graphView;
-
   //NOTE: Refactor these iterators to ids
   std::vector<Node>::iterator selected_node;
   std::vector<Node>::iterator selected_edge_origin;
@@ -103,6 +69,15 @@ public:
   bool moveCamera = false;
   size_t hoveredEdgeIdx = SIZE_MAX;
   size_t hoveredNodeIdx = SIZE_MAX;
+
+  // --- Scripted (Python-driven) execution state -----------------------
+  //
+  // This remains as the source of truth.
+  std::vector<uint32_t> script_stack;
+  std::deque<uint32_t> script_queue;
+  std::vector<bool> visited;    // processed
+  std::vector<bool> discovered; // seen, queued/pushed, but not yet processed
+  uint32_t active_node_id = UINT32_MAX; // node currently being processed
 
   GraphScene(Font *, Arena);
   void init() override;
@@ -115,6 +90,7 @@ public:
                            float thickness = 5.0f);
 
   void resetScene() override;
+  void resetRunState() override;
 
   void switchAlgorithm(AlgorithmId id) override;
   //updates the camera position when the mouse is hovring over an UI element
@@ -130,6 +106,29 @@ public:
   const char *getAdjJSON() override;
   const char *getNodeListJSON() override;
   const char *getRootNodeJSON() override;
+
+  // --- Python API surface ---------------------------------------
+  uint32_t scriptStackPush(uint32_t node_id) override;
+  uint32_t scriptStackPop() override;
+  size_t scriptStackSize() override;
+
+  void scriptQueueEnqueue(uint32_t node_id) override;
+  uint32_t scriptQueueDequeue() override;
+  size_t scriptQueueSize() override;
+
+  void markVisited(uint32_t node_id, bool visited_flag) override;
+  void markDiscovered(uint32_t node_id, bool discovered_flag) override;
+  void setActiveNode(uint32_t node_id) override;
+
+  uint32_t addNode(int64_t data) override;
+  void addEdge(uint32_t from_id, uint32_t to_id) override;
+  void removeNode(uint32_t node_id) override;
+  void removeEdge(uint32_t from_id, uint32_t to_id) override;
+
+  void setAlgoState(AlgorithmState state) override;
+
+  const char *getScriptStackJSON() override;
+  const char *getScriptQueueJSON() override;
 
   static GraphScene *scene_ptr;
 };

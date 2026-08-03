@@ -1,5 +1,4 @@
-import { Editor, type EditorProps } from "@monaco-editor/react";
-import { useState } from "react";
+import { Editor } from "@monaco-editor/react";
 const EditorOptions = {
   automaticLayout: true,
   contextmenu: true,
@@ -33,17 +32,23 @@ const EditorOptions = {
   // wordBasedSuggestions: true,
 };
 
-export default function MonacoEditor({ code }: { code: string }) {
-  const [editorCode, setEditorCode] = useState(code);
-
+export default function MonacoEditor({
+  code,
+  onChange,
+  readOnly,
+}: {
+  code: string;
+  onChange: (value: string) => void;
+  readOnly?: boolean;
+}) {
   return (
     <>
       <Editor
-        options={EditorOptions}
-        value={editorCode}
+        options={{ ...EditorOptions, readOnly: false }}
+        value={code}
         theme="vs-dark"
         language="python"
-        onChange={(value, e) => setEditorCode(value ?? "")}
+        onChange={(value) => onChange(value ?? "")}
       />
     </>
   );

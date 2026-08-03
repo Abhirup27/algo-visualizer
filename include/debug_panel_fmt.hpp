@@ -7,11 +7,6 @@
 
 // @stack             DFS                 node:int
 #define STACK_FORMAT_DFS "{{\"node\":\"{}\"}}"
-// @stack             DFS_A               node:int       phase:string
-#define STACK_FORMAT_DFS_A "{{\"node\":{},\"phase\":\"{}\"}}"
-
-// @queue              BFS                node:int
-#define QUEUE_FORMAT_BFS "{{\"node\":{}}}"
 
 // @AdjacencyMatrix   DFS_A               node:int        edges:int[]
 #define ADJ_MAT_FMT_DFS_A "{{\"node\":{},\"edges\":[{}]}}"
@@ -24,6 +19,14 @@
 
 #define NODE_EDIT_EVENT_FMT                                                    \
   "{{\"node\":{},\"data\":{\"pos\":{\"x\":{}, \"y\":{}},\"current_val\":{}}}}"
+
+// @ScriptStack   Generic   node:int
+#define SCRIPT_STACK_FMT "{{\"node\":{}}}"
+// @ScriptQueue   Generic   node:int
+#define SCRIPT_QUEUE_FMT "{{\"node\":{}}}"
+// @Bars                Sort                       index:int   value:int
+#define BAR_FMT "{{\"index\":{},\"value\":{}}}"
+
 // Indirection macro so you can pass an algo name token
 #define GET_STACK_FMT(algo) STACK_FORMAT_##algo
 #define GET_QUEUE_FMT(algo) QUEUE_FORMAT_##algo

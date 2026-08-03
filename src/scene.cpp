@@ -10,14 +10,8 @@
 Scene::Scene()
     : m_SceneType(SceneType::Graph), g_camera({{0}}), m_updateRes(false) {}
 
-Scene::~Scene() {
-  if (m_algorithmInstance) {
-    // Unqualified call -> virtual dispatch, runs the concrete algorithm's
-    // own destructor (frees its stack/queue/visited-set heap storage).
-    m_algorithmInstance->~IAlgorithm();
-    m_algorithmInstance = nullptr;
-  }
-}
+Scene::~Scene() {}
+
 Scene::Scene(Font *font, Arena parentArena)
     : m_parentArena(parentArena), m_SceneType(SceneType::Graph), m_font(font),
       g_camera({{0}}), m_showUI(true) {}
@@ -82,6 +76,28 @@ const char *Scene::getNodeListJSON() { return ""; }
 const char *Scene::getRootNodeJSON() { return ""; }
 void Scene::setRootNode(uint32_t node_id) {}
 void Scene::setNodeVal(uint32_t node_id, int value) {}
+
+uint32_t Scene::scriptStackPush(uint32_t node_id) { return UINT32_MAX; }
+uint32_t Scene::scriptStackPop() { return UINT32_MAX; }
+size_t Scene::scriptStackSize() { return 0; }
+
+void Scene::scriptQueueEnqueue(uint32_t node_id) {}
+uint32_t Scene::scriptQueueDequeue() { return UINT32_MAX; }
+size_t Scene::scriptQueueSize() { return 0; }
+
+void Scene::markVisited(uint32_t node_id, bool visited_flag) {}
+void Scene::markDiscovered(uint32_t node_id, bool discovered_flag) {}
+void Scene::setActiveNode(uint32_t node_id) {}
+
+uint32_t Scene::addNode(int64_t data) { return UINT32_MAX; }
+void Scene::addEdge(uint32_t from_id, uint32_t to_id) {}
+void Scene::removeNode(uint32_t node_id) {}
+void Scene::removeEdge(uint32_t from_id, uint32_t to_id) {}
+
+void Scene::setAlgoState(AlgorithmState state) {}
+
+const char *Scene::getScriptStackJSON() { return "[]"; }
+const char *Scene::getScriptQueueJSON() { return "[]"; }
 extern "C" {
 void on_resize(void) { App::instance->current_scene->onResize(); }
 
@@ -106,6 +122,8 @@ const char *get_root_node_json() {
 
 void reset_scene() { return App::instance->current_scene->resetScene(); }
 
+void reset_run_state() { return App::instance->current_scene->resetRunState(); }
+
 void toggle_keybind_overlay() { App::instance->current_scene->toggleUI(); }
 
 void save_camera_pos() { App::instance->current_scene->saveCameraPos(); }
@@ -122,15 +140,62 @@ void update_mode(int primary, int secondary) {
   App::instance->current_scene->updateMode(primary, secondary);
 }
 
-void step_algo() {
-  IAlgorithm *algo = App::instance->current_scene->m_algorithmInstance;
-  if (algo)
-    algo->step();
+// --- Python API exports ---------------------------------------------
+// One-to-one with the JS bridge in src/pyodide/bridge.ts, which is in turn is
+// one-to-one with the hidden Python API classes (Stack/Queue/Graph) that wrap every call the user's script makes with an `await wait_for_step()`.
+uint32_t script_stack_push(uint32_t node_id) {
+  return App::instance->current_scene->scriptStackPush(node_id);
 }
-void start_algo() {
-  IAlgorithm *algo = App::instance->current_scene->m_algorithmInstance;
-  if (algo)
-    algo->start();
+uint32_t script_stack_pop() {
+  return App::instance->current_scene->scriptStackPop();
+}
+uint32_t script_stack_size() {
+  return static_cast<uint32_t>(App::instance->current_scene->scriptStackSize());
+}
+
+void script_queue_enqueue(uint32_t node_id) {
+  App::instance->current_scene->scriptQueueEnqueue(node_id);
+}
+uint32_t script_queue_dequeue() {
+  return App::instance->current_scene->scriptQueueDequeue();
+}
+uint32_t script_queue_size() {
+  return static_cast<uint32_t>(App::instance->current_scene->scriptQueueSize());
+}
+
+void mark_visited(uint32_t node_id, int flag) {
+  App::instance->current_scene->markVisited(node_id, flag != 0);
+}
+void mark_discovered(uint32_t node_id, int flag) {
+  App::instance->current_scene->markDiscovered(node_id, flag != 0);
+}
+void set_active_node(uint32_t node_id) {
+  App::instance->current_scene->setActiveNode(node_id);
+}
+
+uint32_t add_node(int64_t data) {
+  return App::instance->current_scene->addNode(data);
+}
+void add_edge(uint32_t from_id, uint32_t to_id) {
+  App::instance->current_scene->addEdge(from_id, to_id);
+}
+void remove_node(uint32_t node_id) {
+  App::instance->current_scene->removeNode(node_id);
+}
+void remove_edge(uint32_t from_id, uint32_t to_id) {
+  App::instance->current_scene->removeEdge(from_id, to_id);
+}
+
+void set_algo_state(int state) {
+  App::instance->current_scene->setAlgoState(
+      static_cast<AlgorithmState>(state));
+}
+
+const char *get_script_stack_json() {
+  return App::instance->current_scene->getScriptStackJSON();
+}
+const char *get_script_queue_json() {
+  return App::instance->current_scene->getScriptQueueJSON();
 }
 }
 
@@ -138,6 +203,7 @@ EMSCRIPTEN_BINDINGS(scene_bindings) {
 
   emscripten::class_<Scene>("Scene")
       .function("resetScene", &Scene::resetScene)
+      .function("resetRunState", &Scene::resetRunState)
       .function("onResize", &Scene::onResize)
       .function("saveCameraPos", &Scene::saveCameraPos)
       .function("resetCameraPos", &Scene::resetCameraPos)

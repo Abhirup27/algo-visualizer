@@ -4,10 +4,13 @@ import type { WasmModule } from "../../types/wasmmodule";
 
 export interface AlgoDescriptor {
   id: string;
+  key: string;
   name: string;
   category: string;
   subCategories: string;
 }
+
+export const LOAD_ALGORITHM_EVENT = "load_algorithm";
 
 const SCENE_TYPE: Record<string, string> = {
   "0": "Graph / Tree",
@@ -19,6 +22,7 @@ export default function AlgoMenuPanel({ ref, wasmModule }: { ref: Ref<HTMLElemen
   const [groupVisible, setGroupVisibility] = useState<Record<string, boolean>>(
     {},
   );
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -72,7 +76,19 @@ export default function AlgoMenuPanel({ ref, wasmModule }: { ref: Ref<HTMLElemen
                 >
                   {algos.map((algo) => (
                     <li key={algo.id}>
-                      <button className="dropdown-li-btn" onClick={() => { wasmModule.current._set_algorithm(algo.id); }}>
+                      <button
+                        className={`dropdown-li-btn ${selectedKey === algo.key ? "selected" : ""}`}
+                        onClick={() => {
+                          setSelectedKey(algo.key);
+                          wasmModule.current._set_algorithm(algo.id);
+                          window.dispatchEvent(
+                            new CustomEvent<AlgoDescriptor>(
+                              LOAD_ALGORITHM_EVENT,
+                              { detail: algo },
+                            ),
+                          );
+                        }}
+                      >
                         {algo.name}
                       </button>
                     </li>
