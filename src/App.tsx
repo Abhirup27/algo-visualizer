@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -9,6 +10,7 @@ import { saveAs } from "file-saver";
 import AlgoVisualizer from "./wasm/algo-visualizer.js";
 import Navbar from "./components/navbar/Navbar.js";
 import AlgoMenuPanel, {
+  LOAD_ALGORITHM_EVENT,
   type AlgoDescriptor,
 } from "./components/algo-menu-panel/AlgoMenuPanel.js";
 import SettingsPanel from "./components/settings-panel/SettingsPanel.js";
@@ -18,13 +20,16 @@ import CodePanel from "./components/code-panel/CodePanel.tsx";
 import Tooltip, { type TooltipPage } from "./components/tooltip/Tooltip.tsx";
 import StackView from "./components/stackView/StackView.tsx";
 import { createTooltipPages } from "./tooltips.ts";
-import type { DFS_AFrame } from "./types/InfoPanel.ts";
+import type { GenericScriptStackFrame } from "./types/InfoPanel.ts";
 import AdjacencyMatrix from "./components/adjMatrix/AdjacencyMatrix.tsx";
 import { NodeDataInputHandler } from "./components/nodeDataInputModal/NodeDataInputHandler.tsx";
 import useWindowSize from "./components/hooks/useWindowResize.ts";
+import { usePyRunner } from "./pyodide/usePyRunner.ts";
+
+const DEFAULT_ALGO_KEY = "menu";
 
 function App() {
-  const [currentStack, setStack] = useState<Array<DFS_AFrame>>([]);
+  const [currentStack, setStack] = useState<Array<GenericScriptStackFrame>>([]);
   //wasmModule
   const moduleRef: RefObject<MainModule | null> = useRef(null);
 
@@ -41,6 +46,62 @@ function App() {
   const infoPanel2Ref: RefObject<HTMLElement> = useRef(null);
   const canvasRef: RefObject<HTMLElement> = useRef(null);
   const [refsReady, setRefsReady] = useState(false);
+
+  // Code being edited/run, and which algorithm it belongs to. Lifted up for the navbar's Run/Step/Pause/Stop controls
+  const [code, setCode] = useState<string>("");
+  const [activeAlgo, setActiveAlgo] = useState<AlgoDescriptor | null>(null);
+
+  const {
+    status,
+    consoleLines,
+    run,
+    stepOnce,
+    pause,
+    resume,
+    stop,
+    clearConsole,
+  } = usePyRunner(moduleRef);
+
+  const loadAlgoFile = useCallback((key: string) => {
+    const controller = new AbortController();
+    fetch(`${import.meta.env.BASE_URL}algorithms/${key}.py`, {
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(`No sample file for "${key}"`);
+        return response.text();
+      })
+      .then((data) => setCode(data))
+      .catch((err) => {
+        if (err.name !== "AbortError")
+          console.error("Failed to load algorithm code:", err);
+      });
+    return controller;
+  }, []);
+
+  // Initial sample file, loaded once on mount.
+  useEffect(() => {
+    const controller = loadAlgoFile(DEFAULT_ALGO_KEY);
+    return () => controller.abort();
+  }, [loadAlgoFile]);
+
+  // Sidebar-driven algorithm loading: AlgoMenuPanel dispatches this event
+  // (with the algorithm's `key`, e.g. "bfs") whenever the user clicks an
+  // entry in the algorithm list.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const algo = (e as CustomEvent<AlgoDescriptor>).detail;
+      stop();
+      setActiveAlgo(algo);
+      loadAlgoFile(algo.key);
+    };
+    window.addEventListener(LOAD_ALGORITHM_EVENT, handler);
+    return () => window.removeEventListener(LOAD_ALGORITHM_EVENT, handler);
+  }, [loadAlgoFile, stop]);
+
+  // see include/scene_registry.hpp)
+  const entryKind: "graph" | "bars" =
+    activeAlgo?.category === "1" ? "bars" : "graph";
 
   useWindowSize(moduleRef, canvasRef);
   useEffect(() => {
@@ -70,7 +131,7 @@ function App() {
     [],
   );
 
-  function updateStack(stack: Array<string>) {
+  function updateStack(stack: Array<GenericScriptStackFrame>) {
     setStack(stack);
   }
 
@@ -115,7 +176,15 @@ function App() {
 
   return (
     <>
-      <Navbar ref={navbarRef} wasmModule={moduleRef!} />
+      <Navbar
+        ref={navbarRef}
+        status={status}
+        onRun={() => run(code, entryKind)}
+        onStep={() => stepOnce(code, entryKind)}
+        onPause={pause}
+        onResume={resume}
+        onStop={stop}
+      />
       <AlgoMenuPanel ref={algoMenuPanelRef} wasmModule={moduleRef} />
       <canvas
         id="canvas"
@@ -144,7 +213,15 @@ function App() {
           wasmModule={moduleRef!}
         />
       </InfoPanel>
-      <CodePanel ref={codePanelRef}></CodePanel>
+      <CodePanel
+        ref={codePanelRef}
+        code={code}
+        onChangeCode={setCode}
+        activeAlgo={activeAlgo}
+        status={status}
+        consoleLines={consoleLines}
+        clearConsole={clearConsole}
+      />
       <InfoPanel ref={infoPanel2Ref} id="info2panel" type="Graph">
         <AdjacencyMatrix wasmModule={moduleRef!} />
       </InfoPanel>
@@ -153,4 +230,3 @@ function App() {
 }
 
 export default App;
-

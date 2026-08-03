@@ -1,14 +1,13 @@
 #include "graph_scene.hpp"
 #include "app.hpp"
 #include "arena.hpp"
-#include "bfs.hpp"
-#include "dfs.hpp"
 #include "events.hpp"
 #include "raylib.h"
 #include "raymath.h"
 #include "rlgl.h"
 #include "scene_registry.hpp"
 #include "web.hpp"
+#include <algorithm>
 #include <cstdio>
 #include <format>
 #include <iterator>
@@ -36,8 +35,7 @@ void GraphScene::updateMode(int main, int sub) {
 }
 
 void GraphScene::setHoverState(bool hover, uint32_t node_id) {
-  if (m_algorithmInstance->algorithm_state == Running ||
-      m_algorithmInstance->algorithm_state == Stepping) {
+  if (algorithm_state == Running || algorithm_state == Stepping) {
     return;
   }
 
@@ -56,25 +54,24 @@ void GraphScene::setHoverState(bool hover, uint32_t node_id) {
 }
 
 void GraphScene::switchAlgorithm(AlgorithmId id) {
-  if (m_algorithmInstance)
-    // runs the actual algorithm's destructor (frees its stack/queue/visited heap storage) before the arena memory beneath it gets reused.
-    arena_reset(&m_algoArena);
-
-  m_algorithmInstance = g_CreateGraphAlgorithm(id, &m_algoArena);
-  if (!m_algorithmInstance) {
-
-    // fall back to the default rather than leaving the scene without an algorithm everything else in GraphScene assumes m_algorithmInstancc is always set.
-    m_algorithmInstance =
-        g_CreateGraphAlgorithm(AlgorithmId::DFS_A, &m_algoArena);
-  }
-  static_cast<IGraphAlgorithm *>(m_algorithmInstance)->reset(m_graphView);
+  // Every algorithm drives the scene identically through the Python
+  // hidden-API calls — there's no per-algorithm C++ object to swap in
+  // anymore. Switching algorithms just clears whatever a previous run left
+  // behind so the new one starts clean; the graph itself (nodes/edges) is
+  // left untouched.
+  script_stack.clear();
+  script_queue.clear();
+  visited.clear();
+  discovered.clear();
+  active_node_id = UINT32_MAX;
+  algorithm_state = AlgorithmState::Idle;
+  dispatchSceneEvent({EventAction::AlgoStateUpdate, EventTarget::Stack});
+  dispatchSceneEvent({EventAction::AlgoStateUpdate, EventTarget::Queue});
 }
 
 GraphScene::GraphScene(Font *font, Arena parentArena)
 
-    : Scene(font, parentArena), a_id(AlgorithmId::DFS_A),
-      m_input_mode(InteractionMode::None),
-      m_graphView{nodes, edges, id_to_node_idx, root_id} {}
+    : Scene(font, parentArena), m_input_mode(InteractionMode::None) {}
 
 GraphScene *GraphScene::scene_ptr = nullptr;
 void GraphScene::init() {
@@ -82,15 +79,6 @@ void GraphScene::init() {
 
   scene_ptr = this;
   lastKey = "";
-
-  void *algoMem = arena_alloc(&m_parentArena, 1024 * 1024 * 1);
-
-  arena_init(&m_algoArena, algoMem, 1024 * 1024 * 1);
-
-  m_algorithmInstance = g_CreateGraphAlgorithm(a_id, &m_algoArena);
-
-  if (m_algorithmInstance)
-    static_cast<IGraphAlgorithm *>(m_algorithmInstance)->reset(m_graphView);
 
   Node newNode;
   newNode.id = 0;
@@ -139,16 +127,22 @@ void GraphScene::draw(IVector2 *resolution) {
   }
 
   for (size_t i = 0; i < nodes.size(); i++) {
-    bool algoCurrent =
-        m_algorithmInstance &&
-        static_cast<IGraphAlgorithm *>(m_algorithmInstance)->m_currentNode ==
-            nodes[i].id;
+    uint32_t node_id = nodes[i].id;
 
-    DrawCircleV(nodes[i].pos, nodes[i].radius,
-                (hoveredNodeIdx == nodes[i].id || algoCurrent) ? COLOR_VISITED
-                : (selected_node == nodes.begin() + i)         ? NORD10
-                : (root_id == nodes[i].id)                     ? NORD13
-                                                               : COLOR_NODE);
+    // Python API script does set_active_node, mark_visited, mark_discovered.
+    bool isCurrent = active_node_id == node_id;
+    bool isVisited = node_id < visited.size() && visited[node_id];
+    bool isDiscovered = node_id < discovered.size() && discovered[node_id];
+
+    Color nodeColor = (hoveredNodeIdx == node_id)            ? COLOR_VISITED
+                      : isCurrent                            ? COLOR_CURRENT
+                      : isVisited                            ? COLOR_VISITED
+                      : isDiscovered                         ? COLOR_DISCOVERED
+                      : (selected_node == nodes.begin() + i) ? NORD10
+                      : (root_id == node_id)                 ? NORD13
+                                                             : COLOR_NODE;
+
+    DrawCircleV(nodes[i].pos, nodes[i].radius, nodeColor);
 
     char dataText[10];
     sprintf(dataText, "%d", (int)nodes[i].data);
@@ -297,8 +291,7 @@ void GraphScene::input() {
 
   case InteractionMode::NodeCreate:
 
-    if (m_algorithmInstance->algorithm_state == Idle ||
-        m_algorithmInstance->algorithm_state == Done) {
+    if (algorithm_state == Idle || algorithm_state == Done) {
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         bool clickedOnNode = false;
 
@@ -389,8 +382,7 @@ void GraphScene::input() {
       }
     }
 
-    if (m_algorithmInstance->algorithm_state == Idle ||
-        m_algorithmInstance->algorithm_state == Done) {
+    if (algorithm_state == Idle || algorithm_state == Done) {
       if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_DELETE)) {
         if (selected_node != nodes.end() && nodes.begin() != nodes.end()) {
 
@@ -446,8 +438,7 @@ void GraphScene::input() {
 
   case InteractionMode::EdgeCreate:
 
-    if (m_algorithmInstance->algorithm_state == Idle ||
-        m_algorithmInstance->algorithm_state == Done) {
+    if (algorithm_state == Idle || algorithm_state == Done) {
       if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
 
         for (size_t i = 0; i < nodes.size(); i++) {
@@ -499,8 +490,7 @@ void GraphScene::input() {
   case InteractionMode::EdgeEdit:
     // Maybe highlight edge, allow delete
 
-    if (m_algorithmInstance->algorithm_state == Idle ||
-        m_algorithmInstance->algorithm_state == Done) {
+    if (algorithm_state == Idle || algorithm_state == Done) {
       for (size_t i = 0; i < edges.size(); i++) {
         if (IsMouseHoveringEdge(mouse_world_pos, nodes[edges[i].from].pos,
                                 nodes[edges[i].to].pos)) {
@@ -547,8 +537,7 @@ void GraphScene::input() {
 
   case InteractionMode::EdgeSelect:
 
-    if (m_algorithmInstance->algorithm_state == Idle ||
-        m_algorithmInstance->algorithm_state == Done) {
+    if (algorithm_state == Idle || algorithm_state == Done) {
       for (size_t i = 0; i < edges.size(); i++) {
         if (IsMouseHoveringEdge(mouse_world_pos, nodes[edges[i].from].pos,
                                 nodes[edges[i].to].pos)) {
@@ -671,8 +660,7 @@ void GraphScene::input() {
     selected_node = nodes.end();
     selected_edge_origin = nodes.end();
   }
-  if (m_algorithmInstance->algorithm_state == Idle ||
-      m_algorithmInstance->algorithm_state == Done) {
+  if (algorithm_state == Idle || algorithm_state == Done) {
     if (IsKeyPressed(KEY_A)) {
       m_input_mode = InteractionMode::NodeCreate;
       main_mode = 1;
@@ -768,7 +756,7 @@ bool GraphScene::IsMouseHoveringEdge(const Vector2 &mouse, const Vector2 &p1,
   if (edgeLenSq == 0.0f)
     return false;
 
-  // Project mouseVec onto edge clamped [0,1]
+  // Project mouseVec onto edge (clamped to [0,1])
   float t = Vector2DotProduct(mouseVec, edge) / edgeLenSq;
   t = Clamp(t, 0.0f, 1.0f);
 
@@ -881,13 +869,221 @@ void GraphScene::resetScene() {
   hoveredEdgeIdx = SIZE_MAX;
   selected_edge_origin = nodes.end();
   root_id = 0;
+  algorithm_state = AlgorithmState::Idle;
 
-  // Whatever algorithm is active clears its own stack/queue/visited-set here
-  if (m_algorithmInstance)
-    m_algorithmInstance->reset();
+  script_stack.clear();
+  script_queue.clear();
+  visited.clear();
+  discovered.clear();
+  active_node_id = UINT32_MAX;
+
   dispatchSceneEvent({EventAction::Remove, EventTarget::Node, 0});
   dispatchSceneEvent({EventAction::Remove, EventTarget::Edge, 0});
   dispatchSceneEvent({EventAction::AlgoStateUpdate, EventTarget::Stack, 0});
+  dispatchSceneEvent({EventAction::AlgoStateUpdate, EventTarget::Queue, 0});
+}
+
+//  this deliberately leaves nodes/edges/id_to_node_idx/root_id alone. it only clears the bookkeeping a single algorithm run
+// accumulates (script stack/queue, visited/discovered marks, the active node).
+void GraphScene::resetRunState() {
+  script_stack.clear();
+  script_queue.clear();
+  visited.clear();
+  discovered.clear();
+  active_node_id = UINT32_MAX;
+  algorithm_state = AlgorithmState::Idle;
+
+  dispatchSceneEvent({EventAction::AlgoStateUpdate, EventTarget::Stack, 0});
+  dispatchSceneEvent({EventAction::AlgoStateUpdate, EventTarget::Queue, 0});
+}
+
+// --- Python API surface ----------------------------------------
+// Each of these is the C++-side handler for exactly one API call
+// (see public/pyapi/algoplex_api.py). Every call mutates GraphScene state
+// and dispatches a scene_event
+uint32_t GraphScene::scriptStackPush(uint32_t node_id) {
+  script_stack.push_back(node_id);
+  dispatchSceneEvent(
+      {EventAction::AlgoStateUpdate, EventTarget::Stack, node_id});
+  return node_id;
+}
+
+uint32_t GraphScene::scriptStackPop() {
+  if (script_stack.empty())
+    return UINT32_MAX;
+  uint32_t node_id = script_stack.back();
+  script_stack.pop_back();
+  dispatchSceneEvent(
+      {EventAction::AlgoStateUpdate, EventTarget::Stack, node_id});
+  return node_id;
+}
+
+size_t GraphScene::scriptStackSize() { return script_stack.size(); }
+
+void GraphScene::scriptQueueEnqueue(uint32_t node_id) {
+  script_queue.push_back(node_id);
+  dispatchSceneEvent({EventAction::Add, EventTarget::Queue, node_id});
+}
+
+uint32_t GraphScene::scriptQueueDequeue() {
+  if (script_queue.empty())
+    return UINT32_MAX;
+  uint32_t node_id = script_queue.front();
+  script_queue.pop_front();
+  dispatchSceneEvent({EventAction::Remove, EventTarget::Queue, node_id});
+  return node_id;
+}
+
+size_t GraphScene::scriptQueueSize() { return script_queue.size(); }
+
+void GraphScene::markVisited(uint32_t node_id, bool visited_flag) {
+  if (id_to_node_idx.find(node_id) == id_to_node_idx.end())
+    return;
+  if (visited.size() <= node_id)
+    visited.resize(node_id + 1, false);
+  visited[node_id] = visited_flag;
+  dispatchSceneEvent({EventAction::Edit, EventTarget::Node, node_id});
+}
+
+void GraphScene::markDiscovered(uint32_t node_id, bool discovered_flag) {
+  if (id_to_node_idx.find(node_id) == id_to_node_idx.end())
+    return;
+  if (discovered.size() <= node_id)
+    discovered.resize(node_id + 1, false);
+  discovered[node_id] = discovered_flag;
+  dispatchSceneEvent({EventAction::Edit, EventTarget::Node, node_id});
+}
+
+void GraphScene::setActiveNode(uint32_t node_id) {
+  active_node_id = node_id;
+  dispatchSceneEvent({EventAction::Edit, EventTarget::Node, node_id});
+}
+
+uint32_t GraphScene::addNode(int64_t data) {
+  uint32_t new_id = 0;
+  for (const auto &n : nodes)
+    new_id = std::max(new_id, n.id + 1);
+
+  Node newNode;
+  newNode.id = new_id;
+  newNode.radius = 15;
+  newNode.pos = {g_camera.target.x, g_camera.target.y};
+  newNode.collider = {newNode.pos.x - newNode.radius,
+                      newNode.pos.y - newNode.radius, (float)newNode.radius * 2,
+                      (float)newNode.radius * 2};
+  newNode.data = data;
+
+  id_to_node_idx[new_id] = nodes.size();
+  nodes.push_back(newNode);
+
+  dispatchSceneEvent({EventAction::Add, EventTarget::Node, new_id});
+  return new_id;
+}
+
+void GraphScene::addEdge(uint32_t from_id, uint32_t to_id) {
+  auto fromIt = id_to_node_idx.find(from_id);
+  auto toIt = id_to_node_idx.find(to_id);
+  if (fromIt == id_to_node_idx.end() || toIt == id_to_node_idx.end())
+    return;
+
+  Edge newEdge;
+  newEdge.from = from_id;
+  newEdge.to = to_id;
+  edges.push_back(newEdge);
+
+  nodes[fromIt->second].edges.push_back(static_cast<int>(to_id));
+  nodes[toIt->second].edges.push_back(static_cast<int>(from_id));
+
+  dispatchSceneEvent({EventAction::Add, EventTarget::Edge, from_id});
+}
+
+void GraphScene::removeNode(uint32_t node_id) {
+  auto it = id_to_node_idx.find(node_id);
+  if (it == id_to_node_idx.end())
+    return;
+  size_t idx = it->second;
+
+  for (const Edge &e : edges) {
+    if (e.from == node_id && id_to_node_idx.count(e.to))
+      std::erase(nodes[id_to_node_idx[e.to]].edges, static_cast<int>(node_id));
+    else if (e.to == node_id && id_to_node_idx.count(e.from))
+      std::erase(nodes[id_to_node_idx[e.from]].edges,
+                 static_cast<int>(node_id));
+  }
+  std::erase_if(edges, [&](const Edge &e) {
+    return e.from == node_id || e.to == node_id;
+  });
+
+  nodes.erase(nodes.begin() + idx);
+
+  id_to_node_idx.clear();
+  for (size_t i = 0; i < nodes.size(); i++)
+    id_to_node_idx[nodes[i].id] = i;
+
+  // nodes.erase() can invalidate these — same reset the KEY_DELETE path in input() uses.
+  selected_node = nodes.end();
+  selected_edge_origin = nodes.end();
+  hoveredNodeIdx = SIZE_MAX;
+  hoveredEdgeIdx = SIZE_MAX;
+  if (root_id == node_id && !nodes.empty())
+    root_id = nodes[0].id;
+
+  dispatchSceneEvent({EventAction::Remove, EventTarget::Node, node_id});
+}
+
+void GraphScene::removeEdge(uint32_t from_id, uint32_t to_id) {
+  auto fromIt = id_to_node_idx.find(from_id);
+  if (fromIt != id_to_node_idx.end())
+    std::erase(nodes[fromIt->second].edges, static_cast<int>(to_id));
+  auto toIt = id_to_node_idx.find(to_id);
+  if (toIt != id_to_node_idx.end())
+    std::erase(nodes[toIt->second].edges, static_cast<int>(from_id));
+
+  std::erase_if(edges, [&](const Edge &e) {
+    return (e.from == from_id && e.to == to_id) ||
+           (e.from == to_id && e.to == from_id);
+  });
+
+  dispatchSceneEvent({EventAction::Remove, EventTarget::Edge, from_id});
+}
+
+void GraphScene::setAlgoState(AlgorithmState state) {
+
+  algorithm_state = state;
+  dispatchSceneEvent({EventAction::AlgoStateUpdate, EventTarget::Stack});
+  dispatchSceneEvent({EventAction::AlgoStateUpdate, EventTarget::Queue});
+}
+
+const char *GraphScene::getScriptStackJSON() {
+  static std::string result;
+  result.clear();
+  auto out = std::back_inserter(result);
+  std::format_to(out, "[");
+  // Walk back-to-front so index 0 is always the top of the stack.
+  for (size_t i = 0; i < script_stack.size(); i++) {
+    if (i > 0)
+      std::format_to(out, ",");
+    std::format_to(out, SCRIPT_STACK_FMT,
+                   script_stack[script_stack.size() - 1 - i]);
+  }
+  std::format_to(out, "]");
+  return result.c_str();
+}
+
+const char *GraphScene::getScriptQueueJSON() {
+  static std::string result;
+  result.clear();
+  auto out = std::back_inserter(result);
+  std::format_to(out, "[");
+  bool first = true;
+  for (uint32_t node_id : script_queue) {
+    if (!first)
+      std::format_to(out, ",");
+    std::format_to(out, SCRIPT_QUEUE_FMT, node_id);
+    first = false;
+  }
+  std::format_to(out, "]");
+  return result.c_str();
 }
 
 static bool NearlyEqual(float a, float b, float eps = 0.01f) {
@@ -923,33 +1119,3 @@ void GraphScene::gotoPos(IVector2 *resolution) {
     moveCamera = false;
   }
 }
-
-void IGraphAlgorithm::reset() {}
-void IGraphAlgorithm::reset(GraphView &graph) { m_graphView = &graph; }
-
-IGraphAlgorithm *g_CreateGraphAlgorithm(AlgorithmId id, Arena *algoArena) {
-
-  switch (id) {
-  case AlgorithmId::DFS_A:
-    return arena_create<A_DFS_ADV>(algoArena, AlgorithmId::DFS_A,
-                                   AlgorithmState::Idle);
-
-  case AlgorithmId::BFS:
-    return arena_create<A_BFS>(algoArena, AlgorithmId::BFS,
-                               AlgorithmState::Idle);
-
-  default:
-
-    return nullptr;
-  }
-}
-IGraphAlgorithm::IGraphAlgorithm() : IAlgorithm() {}
-
-IGraphAlgorithm::IGraphAlgorithm(AlgorithmId id, AlgorithmState state)
-    : IAlgorithm(id) {
-  algorithm_state = state;
-}
-
-const char *IGraphAlgorithm::getStackJSON() { return ""; }
-
-const char *IGraphAlgorithm::getQueueJSON() { return ""; }

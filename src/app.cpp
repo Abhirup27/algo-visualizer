@@ -84,6 +84,7 @@ void initApp(App *app, IVector2 resolution, const char *font) {
         arena_create<Menu>(&app->m_arena, &app->m_font, &app->m_arena);
     app->current_scene->init();
     // app->instance->run();
+    notify_algorithms();
     emscripten_set_main_loop(app->m_RunWrapper, 60, 1);
   }
 }
@@ -134,7 +135,8 @@ void App::m_LoadAlgorithm(int algorithm_id) {
 
   const AlgorithmInfo &info = ALGORITHMS[static_cast<int>(algorithm_id)];
   if (current_scene != nullptr) {
-    // this runs the live scene's own destructor (freeing its nodes/edges/algorithm containers) rather than only Scene's near-empty base destructor.
+    // runs live scene's own destructor (freeing its nodes/edges/algorithm
+    // containers) rather than only Scene's near-empty base destructor.
     current_scene->~Scene();
   }
   arena_reset(&m_arena);
@@ -147,13 +149,14 @@ void App::m_LoadAlgorithm(int algorithm_id) {
         arena_create<GraphScene>(&m_arena, &m_font, m_arena);
     current_scene = graphScene;
     current_scene->init();
-    // init() always starts a GraphScene on the default algorithm (DFS_A)
+    // init() always starts a GraphScene on the default algorithm (DFS_A);
+    // switch to whichever one was actually selected from the menu.
     graphScene->switchAlgorithm(info.id);
     break;
   }
 
   case SceneType::Sort:
-
+    // Not implemented yet — current_scene stays null;
     break;
 
   default:
@@ -185,6 +188,7 @@ extern "C" void notify_algorithms() {
     json += "{";
     json += "\"id\":\"" +
             std::string(std::to_string(std::to_underlying(a.id))) + "\",";
+    json += "\"key\":\"" + std::string(a.key) + "\",";
     json += "\"name\":\"" + std::string(a.name) + "\",";
     json += "\"category\":\"" +
             std::string(std::to_string(std::to_underlying(a.category))) + "\",";

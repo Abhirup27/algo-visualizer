@@ -1,14 +1,26 @@
 import { useState, type RefObject } from "react";
-import type { MainModule } from "../../types/wasmmodule";
+import type { RunMode } from "../../pyodide/types";
 
 export default function Navbar({
   ref,
-  wasmModule,
+  status,
+  onRun,
+  onStep,
+  onPause,
+  onResume,
+  onStop,
 }: {
   ref: RefObject<HTMLElement>;
-  wasmModule: RefObject<MainModule>;
+  status: RunMode;
+  onRun: () => void;
+  onStep: () => void;
+  onPause: () => void;
+  onResume: () => void;
+  onStop: () => void;
 }) {
   const [stepSpeed, setStepSpeed] = useState(1);
+  const isBusy = status === "running" || status === "paused";
+
   return (
     <>
       <nav className="navbar" ref={ref}>
@@ -16,25 +28,39 @@ export default function Navbar({
           <h3>AlgoPlex</h3>
         </div>
         <div className="navbar-actions">
-          <button
-            type="button"
-            onClick={(e) => {
-              wasmModule.current._start_algo();
-            }}
-          >
+          <button type="button" disabled={isBusy} onClick={onRun}>
             Start
           </button>
           <button
             type="button"
-            onClick={(e) => {
-
-              wasmModule.current._step_algo();
-            }}
+            disabled={status === "running"}
+            onClick={onStep}
+            title="Execute the next hidden-API call, then pause"
           >
             Step
           </button>
-          <button type="button">Pause</button>
-          <button type="button">Stop</button>
+          {status === "paused" ? (
+            <button type="button" onClick={onResume}>
+              Resume
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={status !== "running"}
+              onClick={onPause}
+            >
+              Pause
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={!isBusy}
+            onClick={onStop}
+            title="Stop and reset"
+          >
+            Stop
+          </button>
+          <span className={`run-status run-status-${status}`}>{status}</span>
         </div>
         <div className="navbar-speed-controls">
           <label htmlFor="step_speed">Algo speed</label>
@@ -66,4 +92,3 @@ export default function Navbar({
     </>
   );
 }
-
