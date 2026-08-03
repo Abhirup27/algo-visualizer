@@ -27,7 +27,7 @@ export function createTooltipPages(ref: OnboardingRefs): TooltipPage[] {
       title: "Algorithm List",
       text: [
         "This panel contains all the algorithms you can try out in AlgoPlex.",
-        "In this demo, the Depth First Search(Advanced) is selected by default and the only available algorithm.",
+        "In this demo, only graph algorithms are available.",
       ],
       newLoc: true,
       tooltipTarget: algoMenuPanelRef,
@@ -126,8 +126,9 @@ export function createTooltipPages(ref: OnboardingRefs): TooltipPage[] {
       arrowRelDistance: { x: 10, y: -3 },
     },
     {
-      title: "DFS Stack",
+      title: "DFS Stack. ",
       text: [
+        "(Queue view not implemented yet)",
         "This is the stack view.",
         "Here you will be able to see the nodes which will get pushed into the stack array.",
       ],

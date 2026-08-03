@@ -1,5 +1,3 @@
-> NOTE: I am currently rewriting my C++ code in the refactor/cpp-core branch and integrating pyodide in feature/pyodide-integration branch.
-
 # AlgoPlex
 
 **Making complex algorithms simple.**
@@ -10,6 +8,10 @@ Built with **C++**, **WebAssembly (WASM)**, **Raylib**, **React**, and **TypeScr
 
 The visualization engine runs in C++ and is compiled to WebAssembly, while React and TypeScript power the user interface, providing a responsive and interactive learning experience.
 
+## Demo
+
+[![AlgoPlex Demo](https://img.youtube.com/vi/TKAdQdjWHqI/maxresdefault.jpg)](https://youtu.be/TKAdQdjWHqI)
+
 ---
 
 ## Features
@@ -19,8 +21,8 @@ The visualization engine runs in C++ and is compiled to WebAssembly, while React
 - [x] Create, edit, and remove edges between nodes
 - [x] Step through algorithm execution
 - [x] Interactive canvas navigation and manipulation
-- [ ] Pseudocode highlighting and execution tracking
-- [ ] Runtime algorithm editing and debugging
+- [x] Runtime algorithm editing and debugging
+- [ ] Code block highlighting and execution tracking
 - [ ] Additional visualizations and learning tools
 
 ---
@@ -30,7 +32,7 @@ The visualization engine runs in C++ and is compiled to WebAssembly, while React
 ### Graph Algorithms
 
 - [x] Depth First Search (DFS)
-- [ ] Breadth First Search (BFS)
+- [x] Breadth First Search (BFS)
 - [ ] Traveling Salesman Problem (TSP)
 - [ ] More coming soon
 
