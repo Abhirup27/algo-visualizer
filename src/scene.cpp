@@ -12,9 +12,9 @@ Scene::Scene()
 
 Scene::~Scene() {}
 
-Scene::Scene(Font *font, Arena parentArena)
-    : m_parentArena(parentArena), m_SceneType(SceneType::Graph), m_font(font),
-      g_camera({{0}}), m_showUI(true) {}
+Scene::Scene(Font *font, AlgorithmId id, Arena parentArena)
+    : m_parentArena(parentArena), m_algoId(id), m_SceneType(SceneType::Graph),
+      m_font(font), g_camera({{0}}), m_showUI(true) {}
 
 void Scene::init() {
 
@@ -71,6 +71,10 @@ void Scene::saveCameraPos() {
 void Scene::onResize() { m_updateRes = true; }
 
 void Scene::resetCameraPos() {}
+
+uint32_t Scene::getCurrentAlgorithmId() {
+  return static_cast<uint32_t>(this->m_algoId);
+}
 const char *Scene::getAdjJSON() { return ""; }
 const char *Scene::getNodeListJSON() { return ""; }
 const char *Scene::getRootNodeJSON() { return ""; }
@@ -110,6 +114,9 @@ void set_node_val(uint32_t node_id, int value) {
   App::instance->current_scene->setNodeVal(node_id, value);
 }
 
+uint32_t get_current_algorithm_id() {
+  return App::instance->current_scene->getCurrentAlgorithmId();
+}
 const char *get_adj_json() {
   return App::instance->current_scene->getAdjJSON();
 }

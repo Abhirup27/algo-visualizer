@@ -2,9 +2,11 @@
 
 #include "menu.hpp"
 #include "scene.hpp"
+#include "scene_registry.hpp"
 #include <cstdint>
 
-Menu::Menu(Font *font, Arena *arena) : Scene(font, *arena) {}
+Menu::Menu(Font *font, AlgorithmId id, Arena *arena)
+    : Scene(font, id, *arena) {}
 
 void Menu::draw(IVector2 *resolution) { Scene::draw(resolution); }
 

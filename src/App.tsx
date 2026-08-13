@@ -206,7 +206,7 @@ function App() {
         <NodeDataInputHandler wasmModule={moduleRef} canvasRef={canvasRef} />
       )}
       <SettingsPanel ref={settingsPanelRef} wasmModule={moduleRef!} />
-      <InfoPanel ref={infoPanel1Ref} id="info1panel" type="Stack">
+      <InfoPanel ref={infoPanel1Ref} id="info1panel" type={moduleRef.current && moduleRef!.current._get_current_algorithm_id() < 2 ? "Stack" : "Queue"}>
         <StackView
           items={currentStack}
           onUpdate={updateStack}

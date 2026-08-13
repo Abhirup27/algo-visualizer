@@ -79,7 +79,7 @@ public:
   std::vector<bool> discovered; // seen, queued/pushed, but not yet processed
   uint32_t active_node_id = UINT32_MAX; // node currently being processed
 
-  GraphScene(Font *, Arena);
+  GraphScene(Font *, AlgorithmId, Arena);
   void init() override;
   void input() override;
   void update_input_mode();

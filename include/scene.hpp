@@ -21,6 +21,7 @@ public:
   // this is set by set_algo_state() as a Pyodide run starts/steps/finishes.
   AlgorithmState algorithm_state = AlgorithmState::Idle;
 
+  AlgorithmId m_algoId;
   SceneType m_SceneType;
   RenderTexture2D target;
   Font *m_font;
@@ -33,7 +34,7 @@ public:
   Vector2 mouse_world_pos;
 
   Scene();
-  Scene(Font *, Arena);
+  Scene(Font *, AlgorithmId, Arena);
   virtual ~Scene();
   virtual void init() = 0;
   virtual void draw(IVector2 *) = 0;
@@ -53,6 +54,7 @@ public:
   void saveCameraPos();
   virtual void resetCameraPos() = 0;
 
+  uint32_t getCurrentAlgorithmId();
   virtual const char *getAdjJSON();
   virtual const char *getNodeListJSON();
   virtual const char *getRootNodeJSON();
@@ -99,6 +101,7 @@ void EMSCRIPTEN_KEEPALIVE set_hover_state(bool, uint32_t);
 void EMSCRIPTEN_KEEPALIVE save_camera_pos();
 void EMSCRIPTEN_KEEPALIVE set_camera_pos_to_old_pos();
 
+uint32_t EMSCRIPTEN_KEEPALIVE get_current_algorithm_id();
 const char *EMSCRIPTEN_KEEPALIVE get_adj_json();
 const char *EMSCRIPTEN_KEEPALIVE get_node_list_json();
 const char *EMSCRIPTEN_KEEPALIVE get_root_node_json();

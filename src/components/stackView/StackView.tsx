@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { EventActionLabel, EventTargetLabel } from "../../types/events";
 import type { MainModule } from "../../types/wasmmodule";
-import type { GenericScriptStackFrame } from "../../types/InfoPanel";
+import type { GenericScriptQueueFrame, GenericScriptStackFrame } from "../../types/InfoPanel";
 import type { EventDescriptor } from "../../types/EventDescriptor";
 
 export default function StackView({
@@ -9,7 +9,7 @@ export default function StackView({
   onUpdate,
   wasmModule,
 }: {
-  items: GenericScriptStackFrame[];
+  items: GenericScriptStackFrame[] | GenericScriptQueueFrame[];
   onUpdate: (stack: Array<GenericScriptStackFrame>) => void;
   wasmModule: RefObject<MainModule>;
 }) {
@@ -21,12 +21,18 @@ export default function StackView({
       console.log(event.action, event.target);
       if (EventActionLabel[event.action] === EventActionLabel[3]) {
         if (EventTargetLabel[event.target] === EventTargetLabel[3]) {
-
           const ptr = wasmModule.current._get_script_stack_json();
           const json = wasmModule.current.UTF8ToString(ptr);
           const stack: GenericScriptStackFrame[] = JSON.parse(json);
           console.log(stack);
           onUpdate(stack);
+        } else if (EventTargetLabel[event.target] == EventTargetLabel[4]) {
+          const ptr = wasmModule.current._get_script_queue_json();
+          const json = wasmModule.current.UTF8ToString(ptr);
+          const queue: GenericScriptQueueFrame[] = JSON.parse(json);
+
+          console.log("Queue:", queue);
+          onUpdate(queue);
         }
       }
     };

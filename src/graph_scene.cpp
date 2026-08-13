@@ -59,6 +59,8 @@ void GraphScene::switchAlgorithm(AlgorithmId id) {
   // anymore. Switching algorithms just clears whatever a previous run left
   // behind so the new one starts clean; the graph itself (nodes/edges) is
   // left untouched.
+
+  m_algoId = id;
   script_stack.clear();
   script_queue.clear();
   visited.clear();
@@ -69,9 +71,9 @@ void GraphScene::switchAlgorithm(AlgorithmId id) {
   dispatchSceneEvent({EventAction::AlgoStateUpdate, EventTarget::Queue});
 }
 
-GraphScene::GraphScene(Font *font, Arena parentArena)
+GraphScene::GraphScene(Font *font, AlgorithmId id, Arena parentArena)
 
-    : Scene(font, parentArena), m_input_mode(InteractionMode::None) {}
+    : Scene(font, id, parentArena), m_input_mode(InteractionMode::None) {}
 
 GraphScene *GraphScene::scene_ptr = nullptr;
 void GraphScene::init() {
@@ -922,7 +924,8 @@ size_t GraphScene::scriptStackSize() { return script_stack.size(); }
 
 void GraphScene::scriptQueueEnqueue(uint32_t node_id) {
   script_queue.push_back(node_id);
-  dispatchSceneEvent({EventAction::Add, EventTarget::Queue, node_id});
+  dispatchSceneEvent(
+      {EventAction::AlgoStateUpdate, EventTarget::Queue, node_id});
 }
 
 uint32_t GraphScene::scriptQueueDequeue() {
@@ -930,7 +933,8 @@ uint32_t GraphScene::scriptQueueDequeue() {
     return UINT32_MAX;
   uint32_t node_id = script_queue.front();
   script_queue.pop_front();
-  dispatchSceneEvent({EventAction::Remove, EventTarget::Queue, node_id});
+  dispatchSceneEvent(
+      {EventAction::AlgoStateUpdate, EventTarget::Queue, node_id});
   return node_id;
 }
 

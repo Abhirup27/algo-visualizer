@@ -2,11 +2,12 @@
 #include "app.hpp"
 #include "raylib.h"
 #include "scene.hpp"
+#include "scene_registry.hpp"
 
 class Menu : public Scene {
 
 public:
-  Menu(Font *, Arena *);
+  Menu(Font *, AlgorithmId, Arena *);
   void init() override;
   void draw(IVector2 *) override;
   void update(IVector2 *) override;

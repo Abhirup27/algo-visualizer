@@ -81,7 +81,8 @@ void initApp(App *app, IVector2 resolution, const char *font) {
   if (IsWindowReady()) {
     //allocate memory to load empty scene;
     app->current_scene =
-        arena_create<Menu>(&app->m_arena, &app->m_font, &app->m_arena);
+        arena_create<Menu>(&app->m_arena, &app->m_font,
+                           AlgorithmId::ALGORITHM_COUNT, &app->m_arena);
     app->current_scene->init();
     // app->instance->run();
     notify_algorithms();
@@ -146,7 +147,7 @@ void App::m_LoadAlgorithm(int algorithm_id) {
   case SceneType::Graph: {
 
     GraphScene *graphScene =
-        arena_create<GraphScene>(&m_arena, &m_font, m_arena);
+        arena_create<GraphScene>(&m_arena, &m_font, info.id, m_arena);
     current_scene = graphScene;
     current_scene->init();
     // init() always starts a GraphScene on the default algorithm (DFS_A);
