@@ -27,9 +27,9 @@ thirdparty/
 /out
 bin/
 public/wasm/
-src/types/wasmmodule.d.ts
-src/types/events.ts
-src/types/scene_registry.ts
+#src/types/wasmmodule.d.ts
+#src/types/events.ts
+#src/types/scene_registry.ts
 src/wasm/
 build/
 build*/
